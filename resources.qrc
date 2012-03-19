@@ -1,5 +1,0 @@
-<RCC>
-<qresource prefix="/plugins/000_testplugin">
-    <file>icon.png</file>
-</qresource>
-</RCC>
