@@ -296,15 +296,6 @@ def main():
         processing(metadata, gdalData)
         close_bands(gdalData)
 
-        file=open("metadata","w")
-        if file is None:
-            print "ERROR: Can`t write data to metafile"
-            sys.exit(-1)
-
-        for key in metadata:
-            s="{0}={1}\n".format(key,metadata[key],)
-            file.write(s)
-        file.close()
     sys.exit(0)
 
 if __name__ == "__main__":

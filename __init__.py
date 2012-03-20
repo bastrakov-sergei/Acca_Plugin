@@ -1,5 +1,5 @@
 def name():
-    return "My test plugin"
+    return "Acca plugin"
 def description():
     return "NULL"
 def qgisMinimumVersion():
@@ -7,7 +7,7 @@ def qgisMinimumVersion():
 def version():
     return "Version " + "0.1"
 def authorName():
-    return "Me"
+    return "Bastrakov Sergey"
 def classFactory(iface):
-    from plugin import TestPlugin
-    return TestPlugin(iface)
+    from plugin import Acca_Plugin
+    return Acca_Plugin(iface)

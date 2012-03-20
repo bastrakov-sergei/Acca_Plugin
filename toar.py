@@ -233,6 +233,7 @@ def save_metadata(metadata):
     file.close()
 
 def main(list):
+    print list
     if len(list) != 2:
         using()
         return False
@@ -242,7 +243,7 @@ def main(list):
         processing(metadata, gdalData)
         save_metadata(metadata)
         close_bands(gdalData)
-    return True
+    return os.path.join(metadata["PATH"],os.path.basename(metadata["METAFILE"]))
 
 if __name__ == "__main__":
     if (main(sys.argv[1:])):

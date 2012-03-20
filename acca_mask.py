@@ -222,28 +222,20 @@ def processing(metadata,gdalData):
     mask=None
 
 
-def main():
-    list = sys.argv[1:]
+def main(list):
+    print list
     if len(list) != 2:
         using()
+        return False
     else:
         metadata=parsing(list)
         metadata["WITH_SHADOW"]=True
         gdalData=load_bands(metadata)
         processing(metadata, gdalData)
         close_bands(gdalData)
-
-        file=open("new_metadata","w")
-        if file is None:
-            print "ERROR: Can`t write data to metafile"
-            sys.exit(-1)
-
-        for key in metadata:
-            s="{0}={1}\n".format(key,metadata[key],)
-            file.write(s)
-        file.close()
-
-    sys.exit(0)
+    return True
 
 if __name__ == "__main__":
-    main()
+    if (main(sys.argv[1:])):
+        sys.exit(0)
+    sys.exit(-1)
