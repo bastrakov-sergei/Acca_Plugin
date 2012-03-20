@@ -27,10 +27,6 @@ def ESD(date):
 def toar(band,metadata, i):
     #Calculate radiance
     band[0]=((metadata["LMAX_BAND"+str(i)]-metadata["LMIN_BAND"+str(i)])/(metadata["QCALMAX_BAND"+str(i)]-metadata["QCALMIN_BAND"+str(i)]))*(band[0]-metadata["QCALMIN_BAND"+str(i)])+metadata["LMIN_BAND"+str(i)]
-    #band[3]=((metadata["LMAX_BAND3"]-metadata["LMIN_BAND3"])/(metadata["QCALMAX_BAND3"]-metadata["QCALMIN_BAND3"]))*(band[3]-metadata["QCALMIN_BAND3"])+metadata["LMIN_BAND3"]
-    #band[4]=((metadata["LMAX_BAND4"]-metadata["LMIN_BAND4"])/(metadata["QCALMAX_BAND4"]-metadata["QCALMIN_BAND4"]))*(band[4]-metadata["QCALMIN_BAND4"])+metadata["LMIN_BAND4"]
-    #band[5]=((metadata["LMAX_BAND5"]-metadata["LMIN_BAND5"])/(metadata["QCALMAX_BAND5"]-metadata["QCALMIN_BAND5"]))*(band[5]-metadata["QCALMIN_BAND5"])+metadata["LMIN_BAND5"]
-    #band[6]=((metadata["LMAX_BAND6"]-metadata["LMIN_BAND6"])/(metadata["QCALMAX_BAND6"]-metadata["QCALMIN_BAND6"]))*(band[6]-metadata["QCALMIN_BAND6"])+metadata["LMIN_BAND6"]
     #ESUN for 2,3,4,5 bands
     ESUN={"7":{2:1812.,3:1533.,4:1039.,5:230.8},"5":{2:1826.,3:1554.,4:1036.,5:215.0}}
     #Thermal band calibration metadataants
@@ -40,9 +36,6 @@ def toar(band,metadata, i):
     DIST=ESD(metadata["date"])
     if i<6:
         band[0]=(numpy.pi*band[0]*math.pow(DIST,2))/(COSTHETA*ESUN[metadata["sat"]][i])
-    #band[3]=(numpy.pi*band[3]*math.pow(DIST,2))/(COSTHETA*ESUN[metadata["sat"]][3])
-    #band[4]=(numpy.pi*band[4]*math.pow(DIST,2))/(COSTHETA*ESUN[metadata["sat"]][4])
-    #band[5]=(numpy.pi*band[5]*math.pow(DIST,2))/(COSTHETA*ESUN[metadata["sat"]][5])
     else:
         band[0]=TBCC[metadata["sat"]]["K2"]/numpy.log(TBCC[metadata["sat"]]["K1"]/band[0]+1)
 
@@ -170,11 +163,6 @@ def processing(metadata,gdalData):
             print "INFO: Driver %s does not support Create() method." % format
             sys.exit(-1)
 
-#    gdalDataOut.append(driver.CreateCopy(metadata["PATH"]+"/"+os.path.basename(metadata["BAND2_FILE_NAME"]), gdalData[0], 0))
-#    gdalDataOut.append(driver.CreateCopy(metadata["PATH"]+"/"+os.path.basename(metadata["BAND3_FILE_NAME"]), gdalData[1], 0))
-#    gdalDataOut.append(driver.CreateCopy(metadata["PATH"]+"/"+os.path.basename(metadata["BAND4_FILE_NAME"]), gdalData[2], 0))
-#    gdalDataOut.append(driver.CreateCopy(metadata["PATH"]+"/"+os.path.basename(metadata["BAND5_FILE_NAME"]), gdalData[3], 0))
-#    gdalDataOut.append(driver.CreateCopy(metadata["PATH"]+"/"+os.path.basename(metadata["BAND6_FILE_NAME"]), gdalData[4], 0))
     for band in gdalDataOut:
         if band is None:
             print "ERROR: Missing one or more band."
@@ -199,27 +187,15 @@ def processing(metadata,gdalData):
                 else:
                     stepy=step
                 band=[gdalData[band_i].ReadAsArray(i,j,stepx,stepy).astype(numpy.float32)]
-#                        3:gdalData[1].ReadAsArray(i,j,stepx,stepy).astype(numpy.float32),\
-#                        4:gdalData[2].ReadAsArray(i,j,stepx,stepy).astype(numpy.float32),\
-#                        5:gdalData[3].ReadAsArray(i,j,stepx,stepy).astype(numpy.float32),\
-#                        6:gdalData[4].ReadAsArray(i,j,stepx,stepy).astype(numpy.float32)}
 
                 toar(band, metadata, band_i+2)
 
                 if need_new_row:
                     band_r=[]
                     band_r.append(band[0].copy())
-                    #band_r.append(band[3].copy())
-                    #band_r.append(band[4].copy())
-                    #band_r.append(band[5].copy())
-                    #band_r.append(band[6].copy())
                     need_new_row=False
                 else:
                     band_r[0]=numpy.vstack((band_r[0],band[0]))
-#                    band_r[1]=numpy.vstack((band_r[1],band[3]))
-#                    band_r[2]=numpy.vstack((band_r[2],band[4]))
-#                    band_r[3]=numpy.vstack((band_r[3],band[5]))
-#                    band_r[4]=numpy.vstack((band_r[4],band[6]))
                 processed_area+=stepx*stepy
                 stat=processed_area*100.0/area
                 printf ("\rINFO: Toar, step %i of 5: %.2f%s",band_i+1,stat,"%")
@@ -227,30 +203,17 @@ def processing(metadata,gdalData):
             if need_new_column:
                 band_c=[]
                 band_c.append(band_r[0].copy())
-#                band_c.append(band_r[1].copy())
-#                band_c.append(band_r[2].copy())
-#                band_c.append(band_r[3].copy())
-#                band_c.append(band_r[4].copy())
                 need_new_column=False
             else:
                 band_c[0]=numpy.hstack((band_c[0],band_r[0]))
-#                band_c[1]=numpy.hstack((band_c[1],band_r[1]))
-#                band_c[2]=numpy.hstack((band_c[2],band_r[2]))
-#                band_c[3]=numpy.hstack((band_c[3],band_r[3]))
-#                band_c[4]=numpy.hstack((band_c[4],band_r[4]))
         print
         print "INFO: Writing data"
         gdalDataOut[band_i].GetRasterBand(1).WriteArray(band_c[0])
-        time.sleep(30)
-	print "INFO: Closing band"
+        #time.sleep(30)
+        print "INFO: Closing band"
         gdalDataOut[band_i]=None
         band_r=[]
         band_c=[]
-    #gdalDataOut[1].GetRasterBand(1).WriteArray(band_c[1])
-    #gdalDataOut[2].GetRasterBand(1).WriteArray(band_c[2])
-    #gdalDataOut[3].GetRasterBand(1).WriteArray(band_c[3])
-    #gdalDataOut[4].GetRasterBand(1).WriteArray(band_c[4])
-    #close_bands(gdalDataOut)
 
 def save_metadata(metadata):
     file=open(os.path.join(metadata["PATH"],os.path.basename(metadata["METAFILE"])),"w")
