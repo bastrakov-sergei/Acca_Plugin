@@ -110,7 +110,7 @@ def parsing(list):
     metadata["MASK_FILE_NAME"]=list[1]
     if not os.path.exists(path):
         print "ERROR: Can`t open metafile"
-        sys.exit(-1)
+        return None
     metafile=open(path)
     for line in metafile:
         key,param=line.strip().split('=')
@@ -129,7 +129,7 @@ def load_bands(metadata):
             gdalData.append(gdal.Open(metadata["BAND"+str(i)+"_FILE_NAME"], gdal.GA_ReadOnly))
             if gdalData[-1] is None:
                 print "ERROR: Can`t open raster"
-                sys.exit(-1)
+                return None
             #print "Driver short name", gdalData[-1].GetDriver().ShortName
             #print "Driver long name", gdalData[-1].GetDriver().LongName
             #print "Raster size", gdalData[-1].RasterXSize, "x", gdalData[-1].RasterYSize
@@ -141,7 +141,7 @@ def load_bands(metadata):
 
         else:
             print "ERROR: Missing one or more band."
-            sys.exit(-1)
+            return None
     return gdalData
 
 def close_bands(gdalData):
@@ -153,7 +153,7 @@ def close_bands(gdalData):
     gdalData[4]=None
 
 
-def processing(metadata,gdalData):
+def processing(metadata,gdalData,state):
     raster=[]
     format="GTiff"
     driver=gdal.GetDriverByName(format)
@@ -168,7 +168,7 @@ def processing(metadata,gdalData):
         mask.SetGeoTransform(transform)
     else:
         print "INFO: Driver %s does not support Create() method." % format
-        sys.exit(-1)
+        return None
 
     #gdalData.append(driver.CreateCopy(metadata["MASK_FILE_NAME"], gdalData[0], 0))
     step=2000
@@ -208,6 +208,9 @@ def processing(metadata,gdalData):
             processed_area+=stepx*stepy
             stat=processed_area*100.0/area
             printf ("\rACCA first pass: %.2f%s",stat,"%")
+            state[0]=1
+            state[1]=0
+            state[2]=stat
             #print i,"x",j, " ", i+stepx,"x",j+stepy, "s=", processed_area," area=",area
 
         if need_new_column:
@@ -222,20 +225,24 @@ def processing(metadata,gdalData):
     mask=None
 
 
-def main(list):
+def main(list,state):
     print list
     if len(list) != 2:
         using()
         return False
     else:
         metadata=parsing(list)
+        if (metadate == None):
+            return None
         metadata["WITH_SHADOW"]=True
         gdalData=load_bands(metadata)
-        processing(metadata, gdalData)
+        if (gdalData == None):
+            return None
+        if (processing(metadata, gdalData,state) == None):
+            return None
         close_bands(gdalData)
     return True
 
 if __name__ == "__main__":
-    if (main(sys.argv[1:])):
-        sys.exit(0)
-    sys.exit(-1)
+    state=[0,0,0]
+    main(sys.argv[1:],state)

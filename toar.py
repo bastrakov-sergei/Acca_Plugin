@@ -47,7 +47,7 @@ def parsing(list):
     metadata["PATH"]=list[1]
     if not os.path.exists(path):
         print "ERROR: Can`t open metafile"
-        sys.exit(-1)
+        return None
     metafile=open(path)
     for line in metafile:
         param=line.split('=')
@@ -115,7 +115,7 @@ def load_bands(metadata):
             gdalData.append(gdal.Open(metadata["BAND"+str(i)+"_FILE_NAME"], gdal.GA_ReadOnly))
             if gdalData[-1] is None:
                 print "ERROR: Can`t open raster"
-                sys.exit(-1)
+                return None
             #print "Driver short name", gdalData[-1].GetDriver().ShortName
             #print "Driver long name", gdalData[-1].GetDriver().LongName
             #print "Raster size", gdalData[-1].RasterXSize, "x", gdalData[-1].RasterYSize
@@ -127,7 +127,7 @@ def load_bands(metadata):
 
         else:
             print "ERROR: Missing one or more band."
-            sys.exit(-1)
+            return None
     return gdalData
 
 def close_bands(gdalData):
@@ -139,7 +139,7 @@ def close_bands(gdalData):
     gdalData[4]=None
 
 
-def processing(metadata,gdalData):
+def processing(metadata,gdalData,state):
     format="GTiff"
     driver=gdal.GetDriverByName(format)
     gdalDataOut=[]
@@ -161,12 +161,12 @@ def processing(metadata,gdalData):
             gdalDataOut[i].SetGeoTransform(transform[i])
         else:
             print "INFO: Driver %s does not support Create() method." % format
-            sys.exit(-1)
+            return None
 
     for band in gdalDataOut:
         if band is None:
             print "ERROR: Missing one or more band."
-            sys.exit(-1)
+            return None
     for band_i in range(0,5):
         step=2000
         x=gdalData[band_i].RasterXSize
@@ -199,6 +199,10 @@ def processing(metadata,gdalData):
                 processed_area+=stepx*stepy
                 stat=processed_area*100.0/area
                 printf ("\rINFO: Toar, step %i of 5: %.2f%s",band_i+1,stat,"%")
+                state[0]=0
+                state[1]=band_i+1
+                state[2]=stat
+                time.sleep(1)
 
             if need_new_column:
                 band_c=[]
@@ -219,7 +223,7 @@ def save_metadata(metadata):
     file=open(os.path.join(metadata["PATH"],os.path.basename(metadata["METAFILE"])),"w")
     if file is None:
         print "ERROR: Can`t write data to metafile"
-        sys.exit(-1)
+        return None
 
     for key in metadata:
         if ((key=="sat")|\
@@ -232,20 +236,25 @@ def save_metadata(metadata):
             file.write(s)
     file.close()
 
-def main(list):
+def main(list,state):
     print list
     if len(list) != 2:
         using()
         return False
     else:
         metadata=parsing(list)
+        if (metadata == None):
+            return None
         gdalData=load_bands(metadata)
-        processing(metadata, gdalData)
-        save_metadata(metadata)
+        if (gdalData == None):
+            return None
+        if (processing(metadata, gdalData, state) == None):
+            return None
+        if (save_metadata(metadata) == None):
+            return None
         close_bands(gdalData)
     return os.path.join(metadata["PATH"],os.path.basename(metadata["METAFILE"]))
 
 if __name__ == "__main__":
-    if (main(sys.argv[1:])):
-        sys.exit(0)
-    sys.exit(-1)
+    state=[0,0,0]
+    main(sys.argv[1:],state)
