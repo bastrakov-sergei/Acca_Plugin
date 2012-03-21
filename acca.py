@@ -6,6 +6,7 @@ import os
 import time
 import math
 from event import *
+from threading import Thread
 
 #printf from C
 def printf(fstr,*param):
@@ -13,7 +14,7 @@ def printf(fstr,*param):
     sys.stdout.write (string)
     sys.stdout.flush()
 
-class CAcca:
+class CAcca(Thread):
     __NO_CLOUD=0
     __NO_DEFINED=1
     __IS_SHADOW=20
@@ -24,78 +25,78 @@ class CAcca:
     __IS_WARM_CLOUD=9
 
     def __init__(self, metafile, maskfile):
-        pass
-    #using
-    def using():
-        print "Using:\n\t", sys.argv[0],  "<metafile> <mask file>"
+        Thread.__init__(self)
+        self.metafile=metafile
+        self.maskfile=maskfile
+        self.progress=event.Event()
 
-    def shadow_algorithm(band,mask):
-        numpy.putmask(mask[0],(mask[0]==__NO_DEFINED)&((band[3]<0.07) & (((1-band[4])*band[6])>240.) & ((band[4]/band[2]>1.)) & ((band[3]-band[5])/(band[3]+band[5])<0.10)),IS_SHADOW)
+    def shadow_algorithm(self,band,mask):
+        numpy.putmask(mask[0],(mask[0]==self.__NO_DEFINED)&((band[3]<0.07) & (((1-band[4])*band[6])>240.) & ((band[4]/band[2]>1.)) & ((band[3]-band[5])/(band[3]+band[5])<0.10)),self.__IS_SHADOW)
 
     #Acca algorithm, first pass
-    def acca_first(band, mask):
+    def acca_first(self,band, mask):
         boolmask=numpy.invert(numpy.zeros(band[2].shape,dtype=bool))
 
         ndsi=(band[2]-band[5])/(band[2]+band[5])
-        rat55=(1.-band[5])*band[6]
+        rat56=(1.-band[5])*band[6]
 
         mask.append(numpy.empty(band[2].shape,dtype=numpy.uint8))
-        mask[0][:]=NO_DEFINED
-        numpy.putmask(mask[0],((band[2]==0.) | (band[3]==0.) | (band[4]==0.) | (band[5]==0.) | (band[6]==0.)),NO_CLOUD)
+        mask[0][:]=self.__NO_DEFINED
+        numpy.putmask(mask[0],((band[2]==0.) | (band[3]==0.) | (band[4]==0.) | (band[5]==0.) | (band[6]==0.)),self.__NO_CLOUD)
 
         if "WITH_SHADOW" in self.__metadata:
             if self.__metadata["WITH_SHADOW"]==True:
-                shadow_algorithm(band,mask);
+                self.shadow_algorithm(band,mask);
 
-        boolmask_prev=(mask[0]==NO_DEFINED)
+        boolmask_prev=(mask[0]==self.__NO_DEFINED)
 
-        numpy.putmask(mask[0],boolmask_prev,NO_CLOUD)
+        numpy.putmask(mask[0],boolmask_prev,self.__NO_CLOUD)
 
         self.__metadata["count"]["TOTAL"]+=numpy.sum(boolmask)
         boolmask=boolmask&boolmask_prev
 
         #filter 1                                                                          
         boolmask_prev = (band[3]>0.08)
-        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask&(band[3]<0.07),NO_CLOUD)
-        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask&(band[3]>0.07),NO_DEFINED)
+        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask&(band[3]<0.07),self.__NO_CLOUD)
+        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask&(band[3]>0.07),self.__NO_DEFINED)
         boolmask=boolmask&boolmask_prev
 
         #filter 2 (ndsi)
         boolmask_prev = (ndsi>-0.25) & (ndsi<0.70)
-        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask,NO_CLOUD)
+        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask,self.__NO_CLOUD)
         self.__metadata["count"]["SNOW"]+=numpy.sum(numpy.invert(boolmask_prev)&(ndsi>0.08))
         boolmask=boolmask&boolmask_prev
 
         #filter 3
         boolmask_prev = (band[6]<300)
-        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask,NO_CLOUD)
+        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask,self.__NO_CLOUD)
         boolmask=boolmask&boolmask_prev
 
         #filter 4
         boolmask_prev = (rat56<225)
-        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask&(band[5]<0.8),NO_CLOUD)
-        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask&(band[5]>0.8),NO_DEFINED)
+        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask&(band[5]<0.8),self.__NO_CLOUD)
+        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask&(band[5]>0.8),self.__NO_DEFINED)
         boolmask=boolmask&boolmask_prev
 
         #filter 5
         boolmask_prev = ((band[4]/band[3])<2.35)
-        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask,NO_DEFINED)
+        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask,self.__NO_DEFINED)
         boolmask=boolmask&boolmask_prev
 
         #filter 6
         boolmask_prev = ((band[4]/band[2])<2.16248)
         self.__metadata["count"]["SOIL"]+=numpy.sum(boolmask_prev&boolmask)
         self.__metadata["count"]["SOIL"]+=numpy.sum(numpy.invert(boolmask_prev)&boolmask)
-        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask,NO_DEFINED)
+        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask,self.__NO_DEFINED)
         boolmask=boolmask&boolmask_prev
 
         #filter 7
         boolmask_prev = ((band[4]/band[5])>1.0)
-        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask,NO_DEFINED)
+        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask,self.__NO_DEFINED)
         boolmask=boolmask&boolmask_prev
 
-        numpy.putmask(mask[0],boolmask & (rat56<210.),COLD_CLOUD)
-        numpy.putmask(mask[0],boolmask & (rat56>=210.),WARM_CLOUD)
+        numpy.putmask(mask[0],boolmask & (rat56<210.),self.__COLD_CLOUD)
+        numpy.putmask(mask[0],boolmask & (rat56>=210.),self.__WARM_CLOUD)
         self.__metadata["stats"]["SUM_COLD"]+=numpy.sum(boolmask & (rat56<210.))
         self.__metadata["stats"]["SUM_WARM"]+=numpy.sum(boolmask & (rat56>=210.))
         tmax=numpy.max(band[6])
@@ -104,10 +105,10 @@ class CAcca:
         if (tmin<self.__metadata["stats"]["KMIN"]): self.__metadata["stats"]["KMIN"]=tmin
 
     #Parsing metafile
-    def parsing(list):
+    def parsing(self):
         self.__metadata={}
-        path=list[0]
-        self.__metadata["MASK_FILE_NAME"]=list[1]
+        path=self.metafile
+        self.__metadata["MASK_FILE_NAME"]=self.maskfile
         if not os.path.exists(path):
             print "ERROR: Can`t open metafile"
             return None
@@ -120,7 +121,7 @@ class CAcca:
         return self.__metadata
 
     #Loading bands from file
-    def load_bands():
+    def load_bands(self):
         gdalData=[]
 
         for i in 2,3,4,5,6:
@@ -143,7 +144,7 @@ class CAcca:
                 return None
         return gdalData
 
-    def close_bands(gdalData):
+    def close_bands(self,gdalData):
         print "INFO: Closing dataset"
         gdalData[0]=None
         gdalData[1]=None
@@ -151,7 +152,7 @@ class CAcca:
         gdalData[3]=None
         gdalData[4]=None
 
-    def processing(gdalData):
+    def processing(self,gdalData):
         raster=[]
         format="GTiff"
         driver=gdal.GetDriverByName(format)
@@ -159,7 +160,7 @@ class CAcca:
         transform=gdalData[0].GetGeoTransform()
         xsize=gdalData[0].RasterXSize
         ysize=gdalData[0].RasterYSize
-        drvMeta=driver.Getself.__metadata()
+        drvMeta=driver.GetMetadata()
         if drvMeta.has_key( gdal.DCAP_CREATE ) and drvMeta[ gdal.DCAP_CREATE ] == "YES":
             mask=driver.Create(self.__metadata["MASK_FILE_NAME"], xsize, ysize, 1, gdal.GDT_Byte)
             mask.SetProjection(projection)
@@ -191,7 +192,7 @@ class CAcca:
                 else:
                     stepy=step
                 mask_arg=[]
-                acca_first ({2:gdalData[0].ReadAsArray(i,j,stepx,stepy).astype(numpy.float32),\
+                self.acca_first ({2:gdalData[0].ReadAsArray(i,j,stepx,stepy).astype(numpy.float32),\
                             3:gdalData[1].ReadAsArray(i,j,stepx,stepy).astype(numpy.float32),\
                             4:gdalData[2].ReadAsArray(i,j,stepx,stepy).astype(numpy.float32),\
                             5:gdalData[3].ReadAsArray(i,j,stepx,stepy).astype(numpy.float32),\
@@ -205,27 +206,27 @@ class CAcca:
                 processed_area+=stepx*stepy
                 stat=processed_area*100.0/area
                 printf ("\rACCA first pass: %.2f%s",stat,"%")
-
+                self.progress(0,stat)
         if need_new_column:
             mask_c=mask_r.copy()
             need_new_column=False
         else:
             mask_c=numpy.hstack((mask_c,mask_r))
+        print
         print "INFO: Writing mask"
         mask.GetRasterBand(1).WriteArray(mask_c)
         print "INFO: Closing mask"
         mask=None
 
 
-    def start():
-        self.__metadata=parsing()
+    def run(self):
+        self.__metadata=self.parsing()
         if (self.__metadata == None):
             return None
         self.__metadata["WITH_SHADOW"]=True
-        gdalData=load_bands()
+        gdalData=self.load_bands()
         if (gdalData == None):
             return None
-        if (processing(gdalData) == None):
+        if (self.processing(gdalData) == None):
             return None
         close_bands(gdalData)
-        return True

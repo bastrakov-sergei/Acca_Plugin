@@ -210,6 +210,7 @@ class CToar(Thread):
                     need_new_column=False
                 else:
                     band_c[0]=numpy.hstack((band_c[0],band_r[0]))
+            print
             print "INFO: Writing data"
             gdalDataOut[band_i].GetRasterBand(1).WriteArray(band_c[0])
             time.sleep(20)
@@ -242,9 +243,7 @@ class CToar(Thread):
         gdalData=self.load_bands()
         if (gdalData == None):
             return None
-        if (self.processing(gdalData) == None):
-            return None
+        self.processing(gdalData)
         if (self.save_metadata() == None):
             return None
         self.close_bands(gdalData)
-        return os.path.join(self.__metadata["PATH"],os.path.basename(self.__metadata["METAFILE"]))
