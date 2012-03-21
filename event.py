@@ -26,22 +26,3 @@ class Event:
     __isub__=unhandle
     __call__=fire
     __len__=getHandlerCount
-
-'''
-class MockFileWatcher:
-    def __init__(self):
-        self.fileChanged=Event()
-    def watchFiles(self):
-        source_path="foo"
-        self.fileChanged(source_path)
-
-    def log_file_change(source_path):
-        print"%rchanged."%(source_path,)
-
-def log_file_change2(source_path):
-print"%rchanged!"%(source_path,)
-watcher=MockFileWatcher()
-watcher.fileChanged+=log_file_change2
-watcher.fileChanged+=log_file_change
-watcher.fileChanged-=log_file_change2
-watcher.watchFiles()'''
