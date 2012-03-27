@@ -1,15 +1,17 @@
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
-import osgeo.gdal as gdal
 import resources
 import sys
+import os
 import tempfile
 import threading
 import time
 import toar
-import acca_mask
-from form import Ui_Dialog
+from main_form import Ui_Dialog
+from progress_form import Ui_progress_dialog
 from __init__ import name
+from toar import *
+from acca import *
 
 class Acca_Plugin:
 
@@ -29,53 +31,65 @@ class Acca_Plugin:
     def run(self):
         self.window = QDialog()
         self.window.setWindowTitle("Acca");
-        self.ui = Ui_Dialog()
-        self.ui.setupUi(self.window)
-
-        QObject.connect(self.ui.btnGo, SIGNAL("clicked()"), self.btnFGo)
-        QObject.connect(self.ui.btnInPath, SIGNAL("clicked()"), self.btnFInPath)
-        QObject.connect(self.ui.btnOutPath, SIGNAL("clicked()"), self.btnFOutPath)
-        QObject.connect(self.ui.btnTmpPath, SIGNAL("clicked()"), self.btnFTmpPath)
-        self.ui.progressBar.setEnabled(False)
-        self.ui.chkDefault.stateChanged.connect(self.chkFDefault)
-        self.tmpdir="/tmp"
-        self.window.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self.window.setFixedSize(self.window.width(), self.window.height())
-        self.ui.secondW.setVisible(False)
+        self.main = Ui_Dialog()
+        self.main.setupUi(self.window)
+        self.main.btnOk.clicked.connect(self.btnOkClick)
+        self.main.btnCancel.clicked.connect(self.btnCancelClick)
+        self.main.btnOpenMetafile.clicked.connect(self.btnOpenMetafileClick)
+        self.main.btnOpenMaskfile.clicked.connect(self.btnOpenMaskfileClick)
+        self.main.btnOpenTmpfolder.clicked.connect(self.btnOpenTmpfolderClick)
+        self.main.chkDefault.stateChanged.connect(self.chkDefaultChange)
+        self.useDefault=True
+        self.main.txtTmpfolder.setText(tempfile.gettempdir())
         self.window.exec_()
 
-    def chkFDefault(self):
-        self.tmpDefault=self.ui.chkDefault.isChecked()
-        self.ui.txtTmpPath.setEnabled(not self.tmpDefault)
-        self.ui.btnTmpPath.setEnabled(not self.tmpDefault)
+    def btnOkClick(self):
+        self.metafile=self.main.txtMetafile.text().toUtf8().data()
+        self.tmpfolder=self.main.txtTmpfolder.text().toUtf8().data()
+        self.maskfile=self.main.txtMaskfile.text().toUtf8().data()
+        self.toar=CToar(self.metafile,self.tmpfolder,1)
+        QObject.connect(self.toar, SIGNAL("progress(int, float)"),self.updateProgress,Qt.QueuedConnection)
+        QObject.connect(self.toar, SIGNAL("finished()"),self.toarDone)
+        self.window.close()
+        self.progressWindow = QDialog()
+        self.progressWindow.setWindowTitle("Progress")
+        self.slave = Ui_progress_dialog()
+        self.slave.setupUi(self.progressWindow)
+        self.toar.start()
+        self.progressWindow.exec_()
 
-    def runAcca(self):
-        self.tmpmask=toar.main((self.metafile,self.tmpdir),self.state)
-        acca_mask.main((self.tmpmask,self.maskfile),self.state)
+    def toarDone(self):
+        print "Toar done!"
+        self.new_metafile=os.path.join(self.tmpfolder,os.path.basename(self.metafile))
+        self.acca=CAcca(self.new_metafile,self.maskfile,1)
+        QObject.connect(self.acca, SIGNAL("progress(int, float)"),self.updateProgress, Qt.QueuedConnection)
+        QObject.connect(self.acca, SIGNAL("finished()"), self.accaDone)
+        self.acca.start()
 
-    def btnFGo(self):
-        self.metafile=self.ui.txtInPath.text().toUtf8().data()
-        self.tmpdir=self.ui.txtTmpPath.text().toUtf8().data()
-        self.maskfile=self.ui.txtOutPath.text().toUtf8().data()
-        self.state=[0,0,0]
-        shPr=threading.Thread(target=self.runAcca)
-        shPr.daemon=True
-        shPr.start()
-        self.ui.mainW.setVisible(False)
-        self.ui.secondW.setVisible(True)
-        while (shPr.isAlive()):
-            if (self.state[0]==0):
-                self.ui.lblStatus.setText("Toar step {0}".format(self.state[1]))
-            else:
-                self.ui.lblStatus.setText("Acca running")
-            self.ui.progressBar.setValue(self.state[2])
+    def accaDone(self):
+        self.progressWindow.close()
+
+    def btnCancelClick(self):
         self.window.close()
 
-    def btnFInPath(self):
-        self.ui.txtInPath.setText(QFileDialog.getOpenFileName(None, "Open Metafile", QDir.currentPath(), "Metafile (*.txt *.txt);; Other (*)").toUtf8().data())
+    def btnOpenMetafileClick(self):
+        self.main.txtMetafile.setText(QFileDialog.getOpenFileName(None,"Open Metafile",self.main.txtMetafile.text(), "Metafile (*.txt);; Other (*)",))
 
-    def btnFOutPath(self):
-        self.ui.txtOutPath.setText(QFileDialog.getSaveFileName(None, "Save mask file", QDir.currentPath(), "TIFF Image (*.tif)").toUtf8().data())
+    def btnOpenMaskfileClick(self):
+        self.main.txtMaskfile.setText(QFileDialog.getSaveFileName(None,"Save mask file",self.main.txtMaskfile.text(), "TIFF Image (*.tif)"))
 
-    def btnFTmpPath(self):
-        self.ui.txtTmpPath.setText(QFileDialog.getExistingDirectory(None, "Select temp folder", tempfile.gettempdir()).toUtf8().data())
+    def btnOpenTmpfolderClick(self):
+        self.main.txtTmpfolder.setText(QFileDialog.getExistingDirectory(None,"Select temp folder",self.main.txtTmpfolder.text()))
+
+    def chkDefaultChange(self):
+        self.useDefault=self.main.chkDefault.isChecked()
+        self.main.lblTmpfolder.setEnabled(not self.main.chkDefault.isChecked())
+        self.main.txtTmpfolder.setEnabled(not self.main.chkDefault.isChecked())
+        self.main.btnOpenTmpfolder.setEnabled(not self.main.chkDefault.isChecked())
+
+    def updateProgress(self,step,stat):
+        if (step<5):
+            self.slave.lblStatus.setText("Toar: step {0} of 5".format(step+1))
+        else:
+            self.slave.lblStatus.setText("Acca: step {0} of 1".format(step+1))
+        self.slave.prBar.setValue(stat)

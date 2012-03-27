@@ -1,20 +1,13 @@
 ﻿#!/usr/bin/env python
+from PyQt4.QtCore import *
 import sys
 import osgeo.gdal as gdal
 import numpy
 import os
 import time
 import math
-from event import *
-from threading import Thread
 
-#printf from C
-def printf(fstr,*param):
-    string=fstr % param
-    sys.stdout.write (string)
-    sys.stdout.flush()
-
-class CAcca(Thread):
+class CAcca(QThread):
     __NO_CLOUD=0
     __NO_DEFINED=1
     __IS_SHADOW=20
@@ -24,11 +17,19 @@ class CAcca(Thread):
     __IS_COLD_CLOUD=6
     __IS_WARM_CLOUD=9
 
-    def __init__(self, metafile, maskfile):
-        Thread.__init__(self)
+    #printf from C
+    def printf(self, fstr,*param):
+        if (self.debuglevel == 1):
+            string=fstr % param
+            sys.stdout.write (string)
+            sys.stdout.flush()
+
+
+    def __init__(self, metafile, maskfile, debuglevel=0, parent=None):
         self.metafile=metafile
         self.maskfile=maskfile
-        self.progress=event.Event()
+        self.debuglevel=debuglevel
+        QThread.__init__(self,parent)
 
     def shadow_algorithm(self,band,mask):
         numpy.putmask(mask[0],(mask[0]==self.__NO_DEFINED)&((band[3]<0.07) & (((1-band[4])*band[6])>240.) & ((band[4]/band[2]>1.)) & ((band[3]-band[5])/(band[3]+band[5])<0.10)),self.__IS_SHADOW)
@@ -110,7 +111,7 @@ class CAcca(Thread):
         path=self.metafile
         self.__metadata["MASK_FILE_NAME"]=self.maskfile
         if not os.path.exists(path):
-            print "ERROR: Can`t open metafile"
+            self.printf ("ERROR: Can`t open metafile\n")
             return None
         metafile=open(path)
         for line in metafile:
@@ -128,24 +129,24 @@ class CAcca(Thread):
             if "BAND"+str(i)+"_FILE_NAME" in self.__metadata:
                 gdalData.append(gdal.Open(self.__metadata["BAND"+str(i)+"_FILE_NAME"], gdal.GA_ReadOnly))
                 if gdalData[-1] is None:
-                    print "ERROR: Can`t open raster"
+                    self.printf ("ERROR: Can`t open raster")
                     return None
-                #print "Driver short name", gdalData[-1].GetDriver().ShortName
-                #print "Driver long name", gdalData[-1].GetDriver().LongName
-                #print "Raster size", gdalData[-1].RasterXSize, "x", gdalData[-1].RasterYSize
-                #print "Number of bands", gdalData[-1].RasterCount
-                #print "Projection", gdalData[-1].GetProjection()
-                #print "Geo transform", gdalData[-1].GetGeoTransform()
-                #print "Channels count", gdalData[-1].RasterCount
-                print "INFO: File ", self.__metadata["BAND"+str(i)+"_FILE_NAME"], "loaded"
+                #self.printf ("Driver short name", gdalData[-1].GetDriver().ShortName)
+                #self.printf ("Driver long name", gdalData[-1].GetDriver().LongName)
+                #self.printf ("Raster size", gdalData[-1].RasterXSize, "x", gdalData[-1].RasterYSize)
+                #self.printf ("Number of bands", gdalData[-1].RasterCount)
+                #self.printf ("Projection", gdalData[-1].GetProjection())
+                #self.printf ("Geo transform", gdalData[-1].GetGeoTransform())
+                #self.printf ("Channels count", gdalData[-1].RasterCount)
+                self.printf ("INFO: File %s %s\n", self.__metadata["BAND"+str(i)+"_FILE_NAME"], "loaded")
 
             else:
-                print "ERROR: Missing one or more band."
+                self.printf ("ERROR: Missing one or more band.")
                 return None
         return gdalData
 
     def close_bands(self,gdalData):
-        print "INFO: Closing dataset"
+        self.printf ("INFO: Closing dataset\n")
         gdalData[0]=None
         gdalData[1]=None
         gdalData[2]=None
@@ -166,7 +167,7 @@ class CAcca(Thread):
             mask.SetProjection(projection)
             mask.SetGeoTransform(transform)
         else:
-            print "INFO: Driver %s does not support Create() method." % format
+            self.printf ("INFO: Driver %s does not support Create() method.\n", format)
             return None
 
         step=2000
@@ -176,7 +177,7 @@ class CAcca(Thread):
         processed_area=0
         need_new_row=True
         need_new_column=True
-        print "INFO: Running first pass"
+        self.printf ("INFO: Running first pass\n")
         self.__metadata["stats"]={"SUM_COLD":0.,"SUM_WARM":0.,"KMAX":0.,"KMIN":10000.}
         self.__metadata["count"]={"WARM":0.,"COLD":0.,"SNOW":0.,"SOIL":0.,"TOTAL":0.}
         self.__metadata["value"]={"WARM":0.,"COLD":0.,"SNOW":0.,"SOIL":0.}
@@ -205,17 +206,16 @@ class CAcca(Thread):
                     mask_r=numpy.vstack((mask_r,mask_arg[0]))
                 processed_area+=stepx*stepy
                 stat=processed_area*100.0/area
-                printf ("\rACCA first pass: %.2f%s",stat,"%")
-                self.progress(0,stat)
+                self.printf ("\rACCA first pass: %.2f%s",stat,"%")
+                self.emit(SIGNAL("progress(int, float)"), 5, stat)
         if need_new_column:
             mask_c=mask_r.copy()
             need_new_column=False
         else:
             mask_c=numpy.hstack((mask_c,mask_r))
-        print
-        print "INFO: Writing mask"
+        self.printf ("\nINFO: Writing mask\n")
         mask.GetRasterBand(1).WriteArray(mask_c)
-        print "INFO: Closing mask"
+        self.printf ("INFO: Closing mask\n")
         mask=None
 
 
