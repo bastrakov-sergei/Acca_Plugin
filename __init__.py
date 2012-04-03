@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 def name():
     return "Acca plugin"
 def description():
