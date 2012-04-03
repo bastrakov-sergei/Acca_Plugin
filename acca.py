@@ -24,6 +24,42 @@ class CAcca(QThread):
             sys.stdout.write (string)
             sys.stdout.flush()
 
+    def hist_put(self, band,band_mask,hist):
+        for i in numpy.ma.array(band,mask=band_mask).compressed():
+            t=i*self.__metadata["hist_n"]/100.
+            if (t<1): t=1
+            if (t>self.__metadata["hist_n"]): t=self.__metadata["hist_n"]
+            hist[t-1]+=1
+
+    def moment(self, n, hist):
+        total =0
+        mean=0
+        j=0
+        for i in hist:
+            total+=i
+            mean+=(j*i)
+            j+=1
+        mean/=total
+        value=0.
+        j=0
+        for i in hist:
+            value+=(math.pow(j-mean,n)*i)
+        value/=total
+        return (value/math.pow(self.__metadata["hist_n"]/100.,n))
+
+    def quantile(self, q, hist):
+        total=0
+        for i in hist:
+            total+=i
+        value=0.
+        qmax=1.
+        for i in range(self.__metadata["hist_n"]-1,-1,-1):
+            qmin=qmax-(hist[i]/total)
+            if (q>=qmin):
+                value = (q-qmin)/(qmax-qmin)+(i-1)
+                break
+            qmax=qmin
+        return (value/(self.__metadata["hist_n"]/100.))
 
     def __init__(self, metafile, maskfile, debuglevel=0, parent=None):
         self.metafile=metafile
@@ -38,6 +74,7 @@ class CAcca(QThread):
     def acca_first(self,band, mask):
         boolmask=numpy.invert(numpy.zeros(band[2].shape,dtype=bool))
 
+        th=self.__metadata["threshold"]
         ndsi=(band[2]-band[5])/(band[2]+band[5])
         rat56=(1.-band[5])*band[6]
 
@@ -57,49 +94,53 @@ class CAcca(QThread):
         boolmask=boolmask&boolmask_prev
 
         #filter 1                                                                          
-        boolmask_prev = (band[3]>0.08)
-        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask&(band[3]<0.07),self.__NO_CLOUD)
-        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask&(band[3]>0.07),self.__NO_DEFINED)
+        boolmask_prev = (band[3]>th["th_1"])
+        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask&(band[3]<th["th_1_b"]),self.__NO_CLOUD)
+        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask&(band[3]>th["th_1_b"]),self.__NO_DEFINED)
         boolmask=boolmask&boolmask_prev
 
         #filter 2 (ndsi)
-        boolmask_prev = (ndsi>-0.25) & (ndsi<0.70)
+        boolmask_prev = (ndsi>th["th_2"][0]) & (ndsi<th["th_2"][1])
         numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask,self.__NO_CLOUD)
-        self.__metadata["count"]["SNOW"]+=numpy.sum(numpy.invert(boolmask_prev)&(ndsi>0.08))
+        self.__metadata["count"]["SNOW"]+=numpy.sum(numpy.invert(boolmask_prev)&(ndsi>th["th_2_b"]))
         boolmask=boolmask&boolmask_prev
 
         #filter 3
-        boolmask_prev = (band[6]<300)
+        boolmask_prev = (band[6]<th["th_3"])
         numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask,self.__NO_CLOUD)
         boolmask=boolmask&boolmask_prev
 
         #filter 4
-        boolmask_prev = (rat56<225)
-        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask&(band[5]<0.8),self.__NO_CLOUD)
-        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask&(band[5]>0.8),self.__NO_DEFINED)
+        boolmask_prev = (rat56<th["th_4"])
+        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask&(band[5]<th["th_4_b"]),self.__NO_CLOUD)
+        numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask&(band[5]>th["th_4_b"]),self.__NO_DEFINED)
         boolmask=boolmask&boolmask_prev
 
         #filter 5
-        boolmask_prev = ((band[4]/band[3])<2.35)
+        boolmask_prev = ((band[4]/band[3])<th["th_5"])
         numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask,self.__NO_DEFINED)
         boolmask=boolmask&boolmask_prev
 
         #filter 6
-        boolmask_prev = ((band[4]/band[2])<2.16248)
+        boolmask_prev = ((band[4]/band[2])<th["th_6"])
         self.__metadata["count"]["SOIL"]+=numpy.sum(boolmask_prev&boolmask)
         self.__metadata["count"]["SOIL"]+=numpy.sum(numpy.invert(boolmask_prev)&boolmask)
         numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask,self.__NO_DEFINED)
         boolmask=boolmask&boolmask_prev
 
         #filter 7
-        boolmask_prev = ((band[4]/band[5])>1.0)
+        boolmask_prev = ((band[4]/band[5])>th["th_7"])
         numpy.putmask(mask[0],numpy.invert(boolmask_prev)&boolmask,self.__NO_DEFINED)
         boolmask=boolmask&boolmask_prev
 
-        numpy.putmask(mask[0],boolmask & (rat56<210.),self.__COLD_CLOUD)
-        numpy.putmask(mask[0],boolmask & (rat56>=210.),self.__WARM_CLOUD)
-        self.__metadata["stats"]["SUM_COLD"]+=numpy.sum(boolmask & (rat56<210.))
-        self.__metadata["stats"]["SUM_WARM"]+=numpy.sum(boolmask & (rat56>=210.))
+        numpy.putmask(mask[0],boolmask & (rat56<th["th_8"]),self.__COLD_CLOUD)
+        numpy.putmask(mask[0],boolmask & (rat56>=th["th_8"]),self.__WARM_CLOUD)
+        self.__metadata["stats"]["SUM_COLD"]+=numpy.sum(boolmask & (rat56<th["th_8"]))
+        self.__metadata["stats"]["SUM_WARM"]+=numpy.sum(boolmask & (rat56>=th["th_8"]))
+        self.__metadata["count"]["COLD"]+=numpy.sum(boolmask & (rat56<th["th_8"]))
+        self.__metadata["count"]["WARM"]+=numpy.sum(boolmask & (rat56>=th["th_8"]))
+        hist_put((band[6]-self.__metadata["K_BASE"]),(boolmask&(rat56<th["th_8"])),self.__metadata["hist_cold"])
+        hist_put((band[6]-self.__metadata["K_BASE"]),(boolmask&(rat56>=th["th_8"])),self.__metadata["hist_warm"])
         tmax=numpy.max(band[6])
         tmin=numpy.min(band[6])
         if (tmax>self.__metadata["stats"]["KMAX"]): self.__metadata["stats"]["KMAX"]=tmax
@@ -119,6 +160,23 @@ class CAcca(QThread):
             self.__metadata[key]=param
         for i in range(2,7):
             self.__metadata["BAND"+str(i)+"_FILE_NAME"]=os.path.join(os.path.dirname(path),os.path.basename(self.__metadata["BAND"+str(i)+"_FILE_NAME"]))
+        self.__metadata["SCALE"]=200.
+        self.__metadata["K_BASE"]=230.
+        self.__metadata["hist_n"]=100
+        self.__metadata["threshold"]={}
+
+        self.__metadata["threshold"]["th_1"]=0.08
+        self.__metadata["threshold"]["th_1_b"]=0.07
+        self.__metadata["threshold"]["th_2"]=[-0.25,0.70]
+        self.__metadata["threshold"]["th_2_b"]=0.8
+        self.__metadata["threshold"]["th_3"]=300.
+        self.__metadata["threshold"]["th_4"]=225.
+        self.__metadata["threshold"]["th_4_b"]=0.08
+        self.__metadata["threshold"]["th_5"]=2.35
+        self.__metadata["threshold"]["th_6"]=2.16248
+        self.__metadata["threshold"]["th_7"]=1.0
+        self.__metadata["threshold"]["th_8"]=210.
+
         return self.__metadata
 
     #Loading bands from file
@@ -181,6 +239,8 @@ class CAcca(QThread):
         self.__metadata["stats"]={"SUM_COLD":0.,"SUM_WARM":0.,"KMAX":0.,"KMIN":10000.}
         self.__metadata["count"]={"WARM":0.,"COLD":0.,"SNOW":0.,"SOIL":0.,"TOTAL":0.}
         self.__metadata["value"]={"WARM":0.,"COLD":0.,"SNOW":0.,"SOIL":0.}
+        self.__metadata["hist_cold"]=[0]*100
+        self.__metadata["hist_warm"]=[0]*100
         for i in range(0,x,step):
             need_new_row=True
             for j in range(0,y,step):
@@ -217,16 +277,83 @@ class CAcca(QThread):
         mask.GetRasterBand(1).WriteArray(mask_c)
         self.printf ("INFO: Closing mask\n")
         mask=None
+        for i in gdalData:
+            i=None
 
+        self.__metadata["value"]["WARM"]=self.__metadata["count"]["WARM"]/self.__metadata["count"]["TOTAL"]
+        self.__metadata["value"]["COLD"]=self.__metadata["count"]["COLD"]/self.__metadata["count"]["TOTAL"]
+        self.__metadata["value"]["SNOW"]=self.__metadata["count"]["SNOW"]/self.__metadata["count"]["TOTAL"]
+        self.__metadata["value"]["SOIL"]=self.__metadata["count"]["SOIL"]/self.__metadata["count"]["TOTAL"]
+
+        self.__metadata["value"]["TOTAL"]=self.__metadata["count"]["WARM"]+self.__metadata["count"]["COLD"]
+        if (self.__metadata["value"]["TOTAL"]==0.):
+            idesert=0.
+        else:
+            idesert=self.__metadata["value"]["SOIL"]
+
+        if (idesert<=.5 | self.__metadata["value"]["SNOW"]>0.01):
+            self.__metadata["review_warm"]=1
+        else:
+            self.__metadata["review_warm"]=0
+            self.__metadata["count"]["COLD"]+=self.__metadata["count"]["WARM"]
+            self.__metadata["value"]["COLD"]+=self.__metadata["value"]["WARM"]
+            self.__metadata["stats"]["SUM_COLD"]+=self.__metadata["stats"]["SUM_WARM"]
+            i=0
+            for j in hist_warm:
+                hist_cold[i]+=j
+                i+=1
+
+        self.__metadata["stats"]["KMEAN"]=self.__metadata["SCALE"]*self.__metadata["stats"]["SUM_COLD"]/self.__metadata["count"]["COLD"]
+        self.__metadata["stats"]["COVER"]=self.__metadata["count"]["COLD"]/self.__metadata["count"]["TOTAL"]
+
+        if (self.__metadata["cloud_signature"] | (idesert > .5 & self.__metadata["stats"]["COVER"] > 0.004 & self.__metadata["stats"]["KMEAN"] < 295.)):
+            self.__metadata["value"]["MEAN"]=self.quantile(0.5,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
+            self.__metadata["value"]["DSTD"]=self.sqrt(self.moment(2,self.__metadata["hist_cold"],1))
+            self.__metadata["value"]["SKEW"]=self.moment(3,self.__metadata["hist_cold"],3)/math.pow(self.__metadata["value"]["DSTD"],3)
+            shift=self.__metadata["value"]["SKEW"]
+            if (shift>1.):
+                shift=1.
+            else:
+                if (shift<0.):
+                    shift=0.
+            max=quantile(0.9875,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
+            self.__metadata["value"]["KUPPER"]=quantile(0.975,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
+            self.__metadata["value"]["KLOWER"]=quantile(0.835,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
+            if (shift>0.):
+                shift*=self.__metadata["value"]["DSTD"]
+                if ((self.__metadata["value"]["KUPPER"]+shift)>max):
+                    if ((self.__metadata["value"]["KLOWER"]+shift)>max):
+                        self.__metadata["value"]["KLOWER"]+=(max-self.__metadata["value"]["KUPPER"])
+                    else:
+                        self.__metadata["value"]["KLOWER"]+=shift
+                    self.__metadata["value"]["KUPPER"]=max
+                else:
+                    self.__metadata["value"]["KLOWER"]+=shift
+                    self.__metadata["value"]["KUPPER"]+=shift
+        else:
+            if (self.__metadata["stats"]["KMEAN"]<295.):
+                self.__metadata["review_warm"]=0.
+                self.__metadata["value"]["KUPPER"]=0.
+                self.__metadata["value"]["KLOWER"]=0.
+            else:
+                self.__metadata["review_warm"]=1.
+                self.__metadata["value"]["KUPPER"]=0.
+                self.__metadata["value"]["KLOWER"]=0.
+        if (self.__metadata["single_pass"]):
+                self.__metadata["review_warm"]=-1.
+                self.__metadata["value"]["KUPPER"]=0.
+                self.__metadata["value"]["KLOWER"]=0.
+#        self.acca_second(
 
     def run(self):
         self.__metadata=self.parsing()
         if (self.__metadata == None):
             return None
         self.__metadata["WITH_SHADOW"]=True
+        self.__metadata["cloud_signature"]=True
+        self.__metadata["single_pass"]=False
         gdalData=self.load_bands()
         if (gdalData == None):
             return None
         if (self.processing(gdalData) == None):
             return None
-        close_bands(gdalData)
