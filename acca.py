@@ -26,7 +26,7 @@ class CAcca(QThread):
 
     def hist_put(self, band,band_mask,hist):
         for i in numpy.ma.array(band,mask=band_mask).compressed():
-            t=i*self.__metadata["hist_n"]/100.
+            t=int(i*self.__metadata["hist_n"]/100.)
             if (t<1): t=1
             if (t>self.__metadata["hist_n"]): t=self.__metadata["hist_n"]
             hist[t-1]+=1
@@ -139,12 +139,31 @@ class CAcca(QThread):
         self.__metadata["stats"]["SUM_WARM"]+=numpy.sum(boolmask & (rat56>=th["th_8"]))
         self.__metadata["count"]["COLD"]+=numpy.sum(boolmask & (rat56<th["th_8"]))
         self.__metadata["count"]["WARM"]+=numpy.sum(boolmask & (rat56>=th["th_8"]))
-        hist_put((band[6]-self.__metadata["K_BASE"]),(boolmask&(rat56<th["th_8"])),self.__metadata["hist_cold"])
-        hist_put((band[6]-self.__metadata["K_BASE"]),(boolmask&(rat56>=th["th_8"])),self.__metadata["hist_warm"])
+        self.hist_put((band[6]-self.__metadata["K_BASE"]),(boolmask&(rat56<th["th_8"])),self.__metadata["hist_cold"])
+        self.hist_put((band[6]-self.__metadata["K_BASE"]),(boolmask&(rat56>=th["th_8"])),self.__metadata["hist_warm"])
         tmax=numpy.max(band[6])
         tmin=numpy.min(band[6])
         if (tmax>self.__metadata["stats"]["KMAX"]): self.__metadata["stats"]["KMAX"]=tmax
         if (tmin<self.__metadata["stats"]["KMIN"]): self.__metadata["stats"]["KMIN"]=tmin
+
+    def acca_second(self, band6, mask):
+        boolmask0=(mask==0)
+        boolmask0=boolmask0&(mask==self.__NO_DEFINED | (mask==self.__WARM_CLOUD & self.__metadata["review_warm"]==1))
+        boolmask1=(band6>self.__metadata["value"]["KUPPER"])
+        numpy.putmask(mask,boolmask0&boolmask1,0)
+        boolmask2=(mask<self.__metadata["value"]["KLOWER"])
+        numpy.putmask(mask,boolmask0&numpy.invert(boolmask1)&boolmask2,self.__IS_WARM_CLOUD)
+        numpy.putmask(mask,boolmask&numpy.invert(boolmask1)&numpy.invert(boolmask2),self.__IS_COLD_CLOUD)
+        boolmask1=None
+        boolmask2=None
+
+        boolmask1=(mask==self.__COLD_CLOUD | mask==self.__WARM_CLOUD)
+        boolmask2=(mask==self.__WARM_CLOUD & self.__metadata["review_warm"]==0)
+
+        numpy.putmask(mask,numpy.invert(boolmask0)&boolmask1&boolmask2,self.__IS_WARM_CLOUD)
+        numpy.putmask(mask,numpy.invert(boolmask0)&boolmask1&numpy.invert(boolmask2),self.__IS_COLD_CLOUD)
+        boolmask2=None
+        numpy.putmask(mask,numpy.invert(boolmask0)&numpy.invert(boolmask1),self.__IS_SHADOW)
 
     #Parsing metafile
     def parsing(self):
@@ -267,7 +286,7 @@ class CAcca(QThread):
                 processed_area+=stepx*stepy
                 stat=processed_area*100.0/area
                 self.printf ("\rACCA first pass: %.2f%s",stat,"%")
-                self.emit(SIGNAL("progress(int, float)"), 5, stat)
+                self.emit(SIGNAL("progress(int, float)"), 1, stat)
         if need_new_column:
             mask_c=mask_r.copy()
             need_new_column=False
@@ -291,7 +310,7 @@ class CAcca(QThread):
         else:
             idesert=self.__metadata["value"]["SOIL"]
 
-        if (idesert<=.5 | self.__metadata["value"]["SNOW"]>0.01):
+        if ((idesert<=.5) | (self.__metadata["value"]["SNOW"]>0.01)):
             self.__metadata["review_warm"]=1
         else:
             self.__metadata["review_warm"]=0
@@ -306,7 +325,7 @@ class CAcca(QThread):
         self.__metadata["stats"]["KMEAN"]=self.__metadata["SCALE"]*self.__metadata["stats"]["SUM_COLD"]/self.__metadata["count"]["COLD"]
         self.__metadata["stats"]["COVER"]=self.__metadata["count"]["COLD"]/self.__metadata["count"]["TOTAL"]
 
-        if (self.__metadata["cloud_signature"] | (idesert > .5 & self.__metadata["stats"]["COVER"] > 0.004 & self.__metadata["stats"]["KMEAN"] < 295.)):
+        if (self.__metadata["cloud_signature"] | ((idesert > .5) & (self.__metadata["stats"]["COVER"] > 0.004) & (self.__metadata["stats"]["KMEAN"] < 295.))):
             self.__metadata["value"]["MEAN"]=self.quantile(0.5,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
             self.__metadata["value"]["DSTD"]=self.sqrt(self.moment(2,self.__metadata["hist_cold"],1))
             self.__metadata["value"]["SKEW"]=self.moment(3,self.__metadata["hist_cold"],3)/math.pow(self.__metadata["value"]["DSTD"],3)
@@ -343,7 +362,50 @@ class CAcca(QThread):
                 self.__metadata["review_warm"]=-1.
                 self.__metadata["value"]["KUPPER"]=0.
                 self.__metadata["value"]["KLOWER"]=0.
-#        self.acca_second(
+
+        mask=gdal.Open(self.__metadata["MASK_FILE_NAME"], gdal.GA_ReadWrite)
+        band6=gdal.Open(self.__metadata["BAND6_FILE_NAME"], gdal.GA_ReadOnly)
+        step=2000
+        x=band6.RasterXSize
+        y=band6.RasterYSize
+        area=x*y
+        processed_area=0
+        need_new_row=True
+        need_new_column=True
+        self.printf ("INFO: Running second pass\n")
+        for i in range(0,x,step):
+            need_new_row=True
+            for j in range(0,y,step):
+                if i+step > x:
+                    stepx=x-i
+                else:
+                    stepx=step
+                if j+step > y:
+                    stepy=y-j
+                else:
+                    stepy=step
+                mask_arg=[mask.ReadAsArray(i,j,stepx,stepy).astype(numpy.float32)]
+                self.acca_second (band6.ReadAsArray(i,j,stepx,stepy).astype(numpy.float32),mask_arg)
+                if need_new_row:
+                    mask_r=mask_arg[0].copy()
+                    need_new_row=False
+                else:
+                    mask_r=numpy.vstack((mask_r,mask_arg[0]))
+                processed_area+=stepx*stepy
+                stat=processed_area*100.0/area
+                self.printf ("\rACCA second pass: %.2f%s",stat,"%")
+                self.emit(SIGNAL("progress(int, float)"), 2, stat)
+        if need_new_column:
+            mask_c=mask_r.copy()
+            need_new_column=False
+        else:
+            mask_c=numpy.hstack((mask_c,mask_r))
+        self.printf ("\nINFO: Writing mask\n")
+        mask.GetRasterBand(1).WriteArray(mask_c)
+        self.printf ("INFO: Closing mask\n")
+        mask=None
+        band6=None
+
 
     def run(self):
         self.__metadata=self.parsing()
