@@ -7,15 +7,15 @@ import os
 import time
 import math
 
-class CAcca(QThread):
+class CAcca():
     __NO_CLOUD=0
     __NO_DEFINED=1
     __IS_SHADOW=20
     __IS_COULD=1
     __COLD_CLOUD=30
     __WARM_CLOUD=50
-    __IS_COLD_CLOUD=6
-    __IS_WARM_CLOUD=9
+    __IS_COLD_CLOUD=60
+    __IS_WARM_CLOUD=90
 
     #printf from C
     def printf(self, fstr,*param):
@@ -31,10 +31,11 @@ class CAcca(QThread):
             if (t>self.__metadata["hist_n"]): t=self.__metadata["hist_n"]
             hist[t-1]+=1
 
-    def moment(self, n, hist):
-        total =0
+    def moment(self, n, hist, k):
+        total=0
         mean=0
         j=0
+        k=0
         for i in hist:
             total+=i
             mean+=(j*i)
@@ -44,7 +45,7 @@ class CAcca(QThread):
         j=0
         for i in hist:
             value+=(math.pow(j-mean,n)*i)
-        value/=total
+        value/=(total-k)
         return (value/math.pow(self.__metadata["hist_n"]/100.,n))
 
     def quantile(self, q, hist):
@@ -65,7 +66,7 @@ class CAcca(QThread):
         self.metafile=metafile
         self.maskfile=maskfile
         self.debuglevel=debuglevel
-        QThread.__init__(self,parent)
+        #QThread.__init__(self,parent)
 
     def shadow_algorithm(self,band,mask):
         numpy.putmask(mask[0],(mask[0]==self.__NO_DEFINED)&((band[3]<0.07) & (((1-band[4])*band[6])>240.) & ((band[4]/band[2]>1.)) & ((band[3]-band[5])/(band[3]+band[5])<0.10)),self.__IS_SHADOW)
@@ -147,23 +148,23 @@ class CAcca(QThread):
         if (tmin<self.__metadata["stats"]["KMIN"]): self.__metadata["stats"]["KMIN"]=tmin
 
     def acca_second(self, band6, mask):
-        boolmask0=(mask==0)
-        boolmask0=boolmask0&(mask==self.__NO_DEFINED | (mask==self.__WARM_CLOUD & self.__metadata["review_warm"]==1))
+        boolmask0=(mask[0]==0)
+        boolmask0=boolmask0&((mask[0]==self.__NO_DEFINED) | ((mask[0]==self.__WARM_CLOUD) & (self.__metadata["review_warm"]==1)))
         boolmask1=(band6>self.__metadata["value"]["KUPPER"])
-        numpy.putmask(mask,boolmask0&boolmask1,0)
-        boolmask2=(mask<self.__metadata["value"]["KLOWER"])
-        numpy.putmask(mask,boolmask0&numpy.invert(boolmask1)&boolmask2,self.__IS_WARM_CLOUD)
-        numpy.putmask(mask,boolmask&numpy.invert(boolmask1)&numpy.invert(boolmask2),self.__IS_COLD_CLOUD)
+        numpy.putmask(mask[0],boolmask0&boolmask1,0)
+        boolmask2=(mask[0]<self.__metadata["value"]["KLOWER"])
+        numpy.putmask(mask[0],boolmask0&numpy.invert(boolmask1)&boolmask2,self.__IS_WARM_CLOUD)
+        numpy.putmask(mask[0],boolmask0&numpy.invert(boolmask1)&numpy.invert(boolmask2),self.__IS_COLD_CLOUD)
         boolmask1=None
         boolmask2=None
 
-        boolmask1=(mask==self.__COLD_CLOUD | mask==self.__WARM_CLOUD)
-        boolmask2=(mask==self.__WARM_CLOUD & self.__metadata["review_warm"]==0)
+        boolmask1=((mask[0]==self.__COLD_CLOUD) | (mask[0]==self.__WARM_CLOUD))
+        boolmask2=((mask[0]==self.__WARM_CLOUD) & (self.__metadata["review_warm"]==0))
 
-        numpy.putmask(mask,numpy.invert(boolmask0)&boolmask1&boolmask2,self.__IS_WARM_CLOUD)
-        numpy.putmask(mask,numpy.invert(boolmask0)&boolmask1&numpy.invert(boolmask2),self.__IS_COLD_CLOUD)
+        numpy.putmask(mask[0],numpy.invert(boolmask0)&boolmask1&boolmask2,self.__IS_WARM_CLOUD)
+        numpy.putmask(mask[0],numpy.invert(boolmask0)&boolmask1&numpy.invert(boolmask2),self.__IS_COLD_CLOUD)
         boolmask2=None
-        numpy.putmask(mask,numpy.invert(boolmask0)&numpy.invert(boolmask1),self.__IS_SHADOW)
+        numpy.putmask(mask[0],numpy.invert(boolmask0)&numpy.invert(boolmask1),self.__IS_SHADOW)
 
     #Parsing metafile
     def parsing(self):
@@ -247,7 +248,7 @@ class CAcca(QThread):
             self.printf ("INFO: Driver %s does not support Create() method.\n", format)
             return None
 
-        step=2000
+        step=200
         x=gdalData[0].RasterXSize
         y=gdalData[0].RasterYSize
         area=x*y
@@ -286,7 +287,7 @@ class CAcca(QThread):
                 processed_area+=stepx*stepy
                 stat=processed_area*100.0/area
                 self.printf ("\rACCA first pass: %.2f%s",stat,"%")
-                self.emit(SIGNAL("progress(int, float)"), 1, stat)
+                #self.emit(SIGNAL("progress(int, float)"), 1, stat)
         if need_new_column:
             mask_c=mask_r.copy()
             need_new_column=False
@@ -327,7 +328,7 @@ class CAcca(QThread):
 
         if (self.__metadata["cloud_signature"] | ((idesert > .5) & (self.__metadata["stats"]["COVER"] > 0.004) & (self.__metadata["stats"]["KMEAN"] < 295.))):
             self.__metadata["value"]["MEAN"]=self.quantile(0.5,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
-            self.__metadata["value"]["DSTD"]=self.sqrt(self.moment(2,self.__metadata["hist_cold"],1))
+            self.__metadata["value"]["DSTD"]=math.sqrt(self.moment(2,self.__metadata["hist_cold"],1))
             self.__metadata["value"]["SKEW"]=self.moment(3,self.__metadata["hist_cold"],3)/math.pow(self.__metadata["value"]["DSTD"],3)
             shift=self.__metadata["value"]["SKEW"]
             if (shift>1.):
@@ -335,9 +336,9 @@ class CAcca(QThread):
             else:
                 if (shift<0.):
                     shift=0.
-            max=quantile(0.9875,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
-            self.__metadata["value"]["KUPPER"]=quantile(0.975,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
-            self.__metadata["value"]["KLOWER"]=quantile(0.835,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
+            max=self.quantile(0.9875,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
+            self.__metadata["value"]["KUPPER"]=self.quantile(0.975,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
+            self.__metadata["value"]["KLOWER"]=self.quantile(0.835,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
             if (shift>0.):
                 shift*=self.__metadata["value"]["DSTD"]
                 if ((self.__metadata["value"]["KUPPER"]+shift)>max):
@@ -363,48 +364,48 @@ class CAcca(QThread):
                 self.__metadata["value"]["KUPPER"]=0.
                 self.__metadata["value"]["KLOWER"]=0.
 
-        mask=gdal.Open(self.__metadata["MASK_FILE_NAME"], gdal.GA_ReadWrite)
-        band6=gdal.Open(self.__metadata["BAND6_FILE_NAME"], gdal.GA_ReadOnly)
-        step=2000
-        x=band6.RasterXSize
-        y=band6.RasterYSize
-        area=x*y
-        processed_area=0
-        need_new_row=True
-        need_new_column=True
-        self.printf ("INFO: Running second pass\n")
-        for i in range(0,x,step):
-            need_new_row=True
-            for j in range(0,y,step):
-                if i+step > x:
-                    stepx=x-i
-                else:
-                    stepx=step
-                if j+step > y:
-                    stepy=y-j
-                else:
-                    stepy=step
-                mask_arg=[mask.ReadAsArray(i,j,stepx,stepy).astype(numpy.float32)]
-                self.acca_second (band6.ReadAsArray(i,j,stepx,stepy).astype(numpy.float32),mask_arg)
-                if need_new_row:
-                    mask_r=mask_arg[0].copy()
-                    need_new_row=False
-                else:
-                    mask_r=numpy.vstack((mask_r,mask_arg[0]))
-                processed_area+=stepx*stepy
-                stat=processed_area*100.0/area
-                self.printf ("\rACCA second pass: %.2f%s",stat,"%")
-                self.emit(SIGNAL("progress(int, float)"), 2, stat)
-        if need_new_column:
-            mask_c=mask_r.copy()
-            need_new_column=False
-        else:
-            mask_c=numpy.hstack((mask_c,mask_r))
-        self.printf ("\nINFO: Writing mask\n")
-        mask.GetRasterBand(1).WriteArray(mask_c)
-        self.printf ("INFO: Closing mask\n")
-        mask=None
-        band6=None
+#        mask=gdal.Open(self.__metadata["MASK_FILE_NAME"], gdal.GA_Update)
+#        band6=gdal.Open(self.__metadata["BAND6_FILE_NAME"], gdal.GA_ReadOnly)
+#        step=2000
+#        x=band6.RasterXSize
+#        y=band6.RasterYSize
+#        area=x*y
+#        processed_area=0
+#        need_new_row=True
+#        need_new_column=True
+#        self.printf ("INFO: Running second pass\n")
+#        for i in range(0,x,step):
+#            need_new_row=True
+#            for j in range(0,y,step):
+#                if i+step > x:
+#                    stepx=x-i
+#                else:
+#                    stepx=step
+#                if j+step > y:
+#                    stepy=y-j
+#                else:
+#                    stepy=step
+#                mask_arg=[mask.ReadAsArray(i,j,stepx,stepy).astype(numpy.float32)]
+#                self.acca_second (band6.ReadAsArray(i,j,stepx,stepy).astype(numpy.float32),mask_arg)
+#                if need_new_row:
+#                    mask_r=mask_arg[0].copy()
+#                    need_new_row=False
+#                else:
+#                    mask_r=numpy.vstack((mask_r,mask_arg[0]))
+#                processed_area+=stepx*stepy
+#                stat=processed_area*100.0/area
+#                self.printf ("\rACCA second pass: %.2f%s",stat,"%")
+#                self.emit(SIGNAL("progress(int, float)"), 2, stat)
+#        if need_new_column:
+#            mask_c=mask_r.copy()
+#            need_new_column=False
+#        else:
+#            mask_c=numpy.hstack((mask_c,mask_r))
+#        self.printf ("\nINFO: Writing mask\n")
+#        mask.GetRasterBand(1).WriteArray(mask_c)
+#        self.printf ("INFO: Closing mask\n")
+#        mask=None
+#        band6=None
 
 
     def run(self):
