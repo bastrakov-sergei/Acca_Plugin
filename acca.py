@@ -31,10 +31,11 @@ class CAcca(QThread):
             if (t>self.__metadata["hist_n"]): t=self.__metadata["hist_n"]
             hist[t-1]+=1
 
-    def moment(self, n, hist):
-        total =0
+    def moment(self, n, hist, k):
+        total=0
         mean=0
         j=0
+        k=0
         for i in hist:
             total+=i
             mean+=(j*i)
@@ -44,7 +45,7 @@ class CAcca(QThread):
         j=0
         for i in hist:
             value+=(math.pow(j-mean,n)*i)
-        value/=total
+        value/=(total-k)
         return (value/math.pow(self.__metadata["hist_n"]/100.,n))
 
     def quantile(self, q, hist):
@@ -147,23 +148,23 @@ class CAcca(QThread):
         if (tmin<self.__metadata["stats"]["KMIN"]): self.__metadata["stats"]["KMIN"]=tmin
 
     def acca_second(self, band6, mask):
-        boolmask0=(mask==0)
-        boolmask0=boolmask0&(mask==self.__NO_DEFINED | (mask==self.__WARM_CLOUD & self.__metadata["review_warm"]==1))
+        boolmask0=(mask[0]==0)
+        boolmask0=boolmask0&((mask[0]==self.__NO_DEFINED) | ((mask[0]==self.__WARM_CLOUD) & (self.__metadata["review_warm"]==1)))
         boolmask1=(band6>self.__metadata["value"]["KUPPER"])
-        numpy.putmask(mask,boolmask0&boolmask1,0)
-        boolmask2=(mask<self.__metadata["value"]["KLOWER"])
-        numpy.putmask(mask,boolmask0&numpy.invert(boolmask1)&boolmask2,self.__IS_WARM_CLOUD)
-        numpy.putmask(mask,boolmask&numpy.invert(boolmask1)&numpy.invert(boolmask2),self.__IS_COLD_CLOUD)
+        numpy.putmask(mask[0],boolmask0&boolmask1,0)
+        boolmask2=(mask[0]<self.__metadata["value"]["KLOWER"])
+        numpy.putmask(mask[0],boolmask0&numpy.invert(boolmask1)&boolmask2,self.__IS_WARM_CLOUD)
+        numpy.putmask(mask[0],boolmask0&numpy.invert(boolmask1)&numpy.invert(boolmask2),self.__IS_COLD_CLOUD)
         boolmask1=None
         boolmask2=None
 
-        boolmask1=(mask==self.__COLD_CLOUD | mask==self.__WARM_CLOUD)
-        boolmask2=(mask==self.__WARM_CLOUD & self.__metadata["review_warm"]==0)
+        boolmask1=((mask[0]==self.__COLD_CLOUD) | (mask[0]==self.__WARM_CLOUD))
+        boolmask2=((mask[0]==self.__WARM_CLOUD) & (self.__metadata["review_warm"]==0))
 
-        numpy.putmask(mask,numpy.invert(boolmask0)&boolmask1&boolmask2,self.__IS_WARM_CLOUD)
-        numpy.putmask(mask,numpy.invert(boolmask0)&boolmask1&numpy.invert(boolmask2),self.__IS_COLD_CLOUD)
+        numpy.putmask(mask[0],numpy.invert(boolmask0)&boolmask1&boolmask2,self.__IS_WARM_CLOUD)
+        numpy.putmask(mask[0],numpy.invert(boolmask0)&boolmask1&numpy.invert(boolmask2),self.__IS_COLD_CLOUD)
         boolmask2=None
-        numpy.putmask(mask,numpy.invert(boolmask0)&numpy.invert(boolmask1),self.__IS_SHADOW)
+        numpy.putmask(mask[0],numpy.invert(boolmask0)&numpy.invert(boolmask1),self.__IS_SHADOW)
 
     #Parsing metafile
     def parsing(self):
@@ -327,7 +328,7 @@ class CAcca(QThread):
 
         if (self.__metadata["cloud_signature"] | ((idesert > .5) & (self.__metadata["stats"]["COVER"] > 0.004) & (self.__metadata["stats"]["KMEAN"] < 295.))):
             self.__metadata["value"]["MEAN"]=self.quantile(0.5,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
-            self.__metadata["value"]["DSTD"]=self.sqrt(self.moment(2,self.__metadata["hist_cold"],1))
+            self.__metadata["value"]["DSTD"]=math.sqrt(self.moment(2,self.__metadata["hist_cold"],1))
             self.__metadata["value"]["SKEW"]=self.moment(3,self.__metadata["hist_cold"],3)/math.pow(self.__metadata["value"]["DSTD"],3)
             shift=self.__metadata["value"]["SKEW"]
             if (shift>1.):
@@ -335,9 +336,9 @@ class CAcca(QThread):
             else:
                 if (shift<0.):
                     shift=0.
-            max=quantile(0.9875,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
-            self.__metadata["value"]["KUPPER"]=quantile(0.975,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
-            self.__metadata["value"]["KLOWER"]=quantile(0.835,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
+            max=self.quantile(0.9875,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
+            self.__metadata["value"]["KUPPER"]=self.quantile(0.975,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
+            self.__metadata["value"]["KLOWER"]=self.quantile(0.835,self.__metadata["hist_cold"])+self.__metadata["K_BASE"]
             if (shift>0.):
                 shift*=self.__metadata["value"]["DSTD"]
                 if ((self.__metadata["value"]["KUPPER"]+shift)>max):
@@ -363,7 +364,7 @@ class CAcca(QThread):
                 self.__metadata["value"]["KUPPER"]=0.
                 self.__metadata["value"]["KLOWER"]=0.
 
-        mask=gdal.Open(self.__metadata["MASK_FILE_NAME"], gdal.GA_ReadWrite)
+        mask=gdal.Open(self.__metadata["MASK_FILE_NAME"], gdal.GA_Update)
         band6=gdal.Open(self.__metadata["BAND6_FILE_NAME"], gdal.GA_ReadOnly)
         step=2000
         x=band6.RasterXSize
@@ -401,7 +402,7 @@ class CAcca(QThread):
         else:
             mask_c=numpy.hstack((mask_c,mask_r))
         self.printf ("\nINFO: Writing mask\n")
-        mask.GetRasterBand(1).WriteArray(mask_c)
+        #mask.GetRasterBand(1).WriteArray(mask_c)
         self.printf ("INFO: Closing mask\n")
         mask=None
         band6=None
