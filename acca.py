@@ -364,6 +364,7 @@ class CAcca():
                 self.__metadata["value"]["KUPPER"]=0.
                 self.__metadata["value"]["KLOWER"]=0.
 
+<<<<<<< HEAD
 #        mask=gdal.Open(self.__metadata["MASK_FILE_NAME"], gdal.GA_Update)
 #        band6=gdal.Open(self.__metadata["BAND6_FILE_NAME"], gdal.GA_ReadOnly)
 #        step=2000
@@ -406,6 +407,50 @@ class CAcca():
 #        self.printf ("INFO: Closing mask\n")
 #        mask=None
 #        band6=None
+=======
+        mask=gdal.Open(self.__metadata["MASK_FILE_NAME"], gdal.GA_Update)
+        band6=gdal.Open(self.__metadata["BAND6_FILE_NAME"], gdal.GA_ReadOnly)
+        step=2000
+        x=band6.RasterXSize
+        y=band6.RasterYSize
+        area=x*y
+        processed_area=0
+        need_new_row=True
+        need_new_column=True
+        self.printf ("INFO: Running second pass\n")
+        for i in range(0,x,step):
+            need_new_row=True
+            for j in range(0,y,step):
+                if i+step > x:
+                    stepx=x-i
+                else:
+                    stepx=step
+                if j+step > y:
+                    stepy=y-j
+                else:
+                    stepy=step
+                mask_arg=[mask.ReadAsArray(i,j,stepx,stepy).astype(numpy.float32)]
+                self.acca_second (band6.ReadAsArray(i,j,stepx,stepy).astype(numpy.float32),mask_arg)
+                if need_new_row:
+                    mask_r=mask_arg[0].copy()
+                    need_new_row=False
+                else:
+                    mask_r=numpy.vstack((mask_r,mask_arg[0]))
+                processed_area+=stepx*stepy
+                stat=processed_area*100.0/area
+                self.printf ("\rACCA second pass: %.2f%s",stat,"%")
+                self.emit(SIGNAL("progress(int, float)"), 2, stat)
+        if need_new_column:
+            mask_c=mask_r.copy()
+            need_new_column=False
+        else:
+            mask_c=numpy.hstack((mask_c,mask_r))
+        self.printf ("\nINFO: Writing mask\n")
+        #mask.GetRasterBand(1).WriteArray(mask_c)
+        self.printf ("INFO: Closing mask\n")
+        mask=None
+        band6=None
+>>>>>>> e22278d97f47acc4277173d1f10ee2fcd4d9b362
 
 
     def run(self):
