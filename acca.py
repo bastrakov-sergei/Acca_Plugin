@@ -7,7 +7,7 @@ import os
 import time
 import math
 
-class CAcca():
+class CAcca(QThread):
     __NO_CLOUD=0
     __NO_DEFINED=1
     __IS_SHADOW=20
@@ -25,11 +25,11 @@ class CAcca():
             sys.stdout.flush()
 
     def hist_put(self, band,band_mask,hist):
-        #for i in numpy.ma.array(band,mask=band_mask).compressed():
-        #    t=int(i*self.__metadata["hist_n"]/100.)
-        #    if (t<1): t=1
-        #    if (t>self.__metadata["hist_n"]): t=self.__metadata["hist_n"]
-        #    hist[t-1]+=1
+        for i in numpy.ma.array(band,mask=band_mask).compressed():
+            t=int(i*self.__metadata["hist_n"]/100.)
+            if (t<1): t=1
+            if (t>self.__metadata["hist_n"]): t=self.__metadata["hist_n"]
+            hist[t-1]+=1
         pass
 
     def moment(self, n, hist, k):
@@ -67,7 +67,7 @@ class CAcca():
         self.metafile=metafile
         self.maskfile=maskfile
         self.debuglevel=debuglevel
-        #QThread.__init__(self,parent)
+        QThread.__init__(self,parent)
 
     def shadow_algorithm(self,band,mask):
         numpy.putmask(mask[0],(mask[0]==self.__NO_DEFINED)&((band[3]<0.07) & (((1-band[4])*band[6])>240.) & ((band[4]/band[2]>1.)) & ((band[3]-band[5])/(band[3]+band[5])<0.10)),self.__IS_SHADOW)
@@ -288,12 +288,12 @@ class CAcca():
                 processed_area+=stepx*stepy
                 stat=processed_area*100.0/area
                 self.printf ("\rACCA first pass: %.2f%s",stat,"%")
-                #self.emit(SIGNAL("progress(int, float)"), 1, stat)
-        if need_new_column:
-            mask_c=mask_r.copy()
-            need_new_column=False
-        else:
-            mask_c=numpy.hstack((mask_c,mask_r))
+                self.emit(SIGNAL("progress(int, float)"), 5, stat)
+            if need_new_column:
+                mask_c=mask_r.copy()
+                need_new_column=False
+            else:
+                mask_c=numpy.hstack((mask_c,mask_r))
         self.printf ("\nINFO: Writing mask\n")
         mask.GetRasterBand(1).WriteArray(mask_c)
         self.printf ("INFO: Closing mask\n")
