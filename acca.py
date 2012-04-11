@@ -25,11 +25,12 @@ class CAcca():
             sys.stdout.flush()
 
     def hist_put(self, band,band_mask,hist):
-        for i in numpy.ma.array(band,mask=band_mask).compressed():
-            t=int(i*self.__metadata["hist_n"]/100.)
-            if (t<1): t=1
-            if (t>self.__metadata["hist_n"]): t=self.__metadata["hist_n"]
-            hist[t-1]+=1
+        #for i in numpy.ma.array(band,mask=band_mask).compressed():
+        #    t=int(i*self.__metadata["hist_n"]/100.)
+        #    if (t<1): t=1
+        #    if (t>self.__metadata["hist_n"]): t=self.__metadata["hist_n"]
+        #    hist[t-1]+=1
+        pass
 
     def moment(self, n, hist, k):
         total=0
@@ -248,7 +249,7 @@ class CAcca():
             self.printf ("INFO: Driver %s does not support Create() method.\n", format)
             return None
 
-        step=200
+        step=2000
         x=gdalData[0].RasterXSize
         y=gdalData[0].RasterYSize
         area=x*y
@@ -406,7 +407,6 @@ class CAcca():
 #        self.printf ("INFO: Closing mask\n")
 #        mask=None
 #        band6=None
-
 
     def run(self):
         self.__metadata=self.parsing()
