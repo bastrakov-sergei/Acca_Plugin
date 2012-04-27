@@ -25,12 +25,20 @@ class CAcca(QThread):
             sys.stdout.flush()
 
     def hist_put(self, band,band_mask,hist):
-        for i in numpy.ma.array(band,mask=band_mask).compressed():
-            t=int(i*self.__metadata["hist_n"]/100.)
-            if (t<1): t=1
-            if (t>self.__metadata["hist_n"]): t=self.__metadata["hist_n"]
-            hist[t-1]+=1
-        pass
+        #for i in numpy.ma.array(band,mask=band_mask).compressed():
+        #    t=int(i*self.__metadata["hist_n"]/100.)
+        #    if (t<1): t=1
+        #    if (t>self.__metadata["hist_n"]): t=self.__metadata["hist_n"]
+        #    hist[t-1]+=1
+
+        #hist[0]=(numpy.array(hist[0])+numpy.array(numpy.histogram(numpy.ma.array(band,mask=band_mask).compressed(),99,(1,100))[0])).tolist()
+        t0=numpy.array(hist[0])
+        t1=numpy.ma.array(band,mask=band_mask).compressed()
+        t2=numpy.histogram(t1,100,(1,101))
+        t3=numpy.array(t2[0])
+        t4=t0+t3
+        t5=t4.tolist()
+        hist[0]=t5
 
     def moment(self, n, hist, k):
         total=0
@@ -63,11 +71,14 @@ class CAcca(QThread):
             qmax=qmin
         return (value/(self.__metadata["hist_n"]/100.))
 
-    def __init__(self, metafile, maskfile, debuglevel=0, parent=None):
+    def __init__(self, metafile, maskfile, debuglevel=0, with_shadows=True, cloud_signature=True, single_pass=False, parent=None):
         self.metafile=metafile
         self.maskfile=maskfile
         self.debuglevel=debuglevel
         QThread.__init__(self,parent)
+        self.WITH_SHADOW=with_shadows
+        self.cloud_signature=cloud_signature
+        self.single_pass=single_pass
 
     def shadow_algorithm(self,band,mask):
         numpy.putmask(mask[0],(mask[0]==self.__NO_DEFINED)&((band[3]<0.07) & (((1-band[4])*band[6])>240.) & ((band[4]/band[2]>1.)) & ((band[3]-band[5])/(band[3]+band[5])<0.10)),self.__IS_SHADOW)
@@ -141,8 +152,12 @@ class CAcca(QThread):
         self.__metadata["stats"]["SUM_WARM"]+=numpy.sum(boolmask & (rat56>=th["th_8"]))
         self.__metadata["count"]["COLD"]+=numpy.sum(boolmask & (rat56<th["th_8"]))
         self.__metadata["count"]["WARM"]+=numpy.sum(boolmask & (rat56>=th["th_8"]))
-        self.hist_put((band[6]-self.__metadata["K_BASE"]),(boolmask&(rat56<th["th_8"])),self.__metadata["hist_cold"])
-        self.hist_put((band[6]-self.__metadata["K_BASE"]),(boolmask&(rat56>=th["th_8"])),self.__metadata["hist_warm"])
+        hist=[self.__metadata["hist_cold"]]
+        self.hist_put((band[6]-self.__metadata["K_BASE"]),(boolmask&(rat56<th["th_8"])),hist)
+        self.__metadata["hist_cold"]=hist[0]
+        hist=[self.__metadata["hist_warm"]]
+        self.hist_put((band[6]-self.__metadata["K_BASE"]),(boolmask&(rat56>=th["th_8"])),hist)
+        self.__metadata["hist_warm"]=hist[0]
         tmax=numpy.max(band[6])
         tmin=numpy.min(band[6])
         if (tmax>self.__metadata["stats"]["KMAX"]): self.__metadata["stats"]["KMAX"]=tmax
@@ -171,6 +186,9 @@ class CAcca(QThread):
     def parsing(self):
         self.__metadata={}
         path=self.metafile
+        self.__metadata["WITH_SHADOW"]=self.WITH_SHADOW
+        self.__metadata["cloud_signature"]=self.cloud_signature
+        self.__metadata["single_pass"]=self.single_pass
         self.__metadata["MASK_FILE_NAME"]=self.maskfile
         if not os.path.exists(path):
             self.printf ("ERROR: Can`t open metafile\n")
@@ -260,8 +278,8 @@ class CAcca(QThread):
         self.__metadata["stats"]={"SUM_COLD":0.,"SUM_WARM":0.,"KMAX":0.,"KMIN":10000.}
         self.__metadata["count"]={"WARM":0.,"COLD":0.,"SNOW":0.,"SOIL":0.,"TOTAL":0.}
         self.__metadata["value"]={"WARM":0.,"COLD":0.,"SNOW":0.,"SOIL":0.}
-        self.__metadata["hist_cold"]=[0]*100
-        self.__metadata["hist_warm"]=[0]*100
+        self.__metadata["hist_cold"]=[0]*self.__metadata["hist_n"]
+        self.__metadata["hist_warm"]=[0]*self.__metadata["hist_n"]
         for i in range(0,x,step):
             need_new_row=True
             for j in range(0,y,step):
@@ -412,9 +430,6 @@ class CAcca(QThread):
         self.__metadata=self.parsing()
         if (self.__metadata == None):
             return None
-        self.__metadata["WITH_SHADOW"]=True
-        self.__metadata["cloud_signature"]=True
-        self.__metadata["single_pass"]=False
         gdalData=self.load_bands()
         if (gdalData == None):
             return None

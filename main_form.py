@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file 'main_form.ui'
 #
-# Created: Sat Mar 24 16:06:02 2012
+# Created: Fri Apr 27 19:11:21 2012
 #      by: PyQt4 UI code generator 4.7.3
 #
 # WARNING! All changes made in this file will be lost!
@@ -12,9 +12,9 @@ from PyQt4 import QtCore, QtGui
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
         Dialog.setObjectName("Dialog")
-        Dialog.resize(520, 187)
+        Dialog.resize(583, 208)
         self.gridLayoutWidget = QtGui.QWidget(Dialog)
-        self.gridLayoutWidget.setGeometry(QtCore.QRect(10, 0, 501, 181))
+        self.gridLayoutWidget.setGeometry(QtCore.QRect(10, 0, 566, 201))
         self.gridLayoutWidget.setObjectName("gridLayoutWidget")
         self.gridLayout = QtGui.QGridLayout(self.gridLayoutWidget)
         self.gridLayout.setObjectName("gridLayout")
@@ -44,19 +44,33 @@ class Ui_Dialog(object):
         self.chkDefault.setChecked(True)
         self.chkDefault.setTristate(False)
         self.chkDefault.setObjectName("chkDefault")
-        self.gridLayout_2.addWidget(self.chkDefault, 2, 0, 1, 1)
+        self.gridLayout_2.addWidget(self.chkDefault, 3, 0, 1, 1)
         self.lblTmpfolder = QtGui.QLabel(self.gridLayoutWidget)
         self.lblTmpfolder.setEnabled(False)
         self.lblTmpfolder.setObjectName("lblTmpfolder")
-        self.gridLayout_2.addWidget(self.lblTmpfolder, 3, 0, 1, 1)
+        self.gridLayout_2.addWidget(self.lblTmpfolder, 4, 0, 1, 1)
         self.txtTmpfolder = QtGui.QLineEdit(self.gridLayoutWidget)
         self.txtTmpfolder.setEnabled(False)
         self.txtTmpfolder.setObjectName("txtTmpfolder")
-        self.gridLayout_2.addWidget(self.txtTmpfolder, 3, 1, 1, 1)
+        self.gridLayout_2.addWidget(self.txtTmpfolder, 4, 1, 1, 1)
         self.btnOpenTmpfolder = QtGui.QPushButton(self.gridLayoutWidget)
         self.btnOpenTmpfolder.setEnabled(False)
         self.btnOpenTmpfolder.setObjectName("btnOpenTmpfolder")
-        self.gridLayout_2.addWidget(self.btnOpenTmpfolder, 3, 2, 1, 1)
+        self.gridLayout_2.addWidget(self.btnOpenTmpfolder, 4, 2, 1, 1)
+        self.horizontalLayout_2 = QtGui.QHBoxLayout()
+        self.horizontalLayout_2.setObjectName("horizontalLayout_2")
+        self.chkShadows = QtGui.QCheckBox(self.gridLayoutWidget)
+        self.chkShadows.setChecked(True)
+        self.chkShadows.setObjectName("chkShadows")
+        self.horizontalLayout_2.addWidget(self.chkShadows)
+        self.chkCloud = QtGui.QCheckBox(self.gridLayoutWidget)
+        self.chkCloud.setChecked(True)
+        self.chkCloud.setObjectName("chkCloud")
+        self.horizontalLayout_2.addWidget(self.chkCloud)
+        self.chkPass = QtGui.QCheckBox(self.gridLayoutWidget)
+        self.chkPass.setObjectName("chkPass")
+        self.horizontalLayout_2.addWidget(self.chkPass)
+        self.gridLayout_2.addLayout(self.horizontalLayout_2, 2, 1, 1, 1)
         self.verticalLayout.addLayout(self.gridLayout_2)
         self.gridLayout.addLayout(self.verticalLayout, 0, 0, 1, 1)
         self.verticalLayout_2 = QtGui.QVBoxLayout()
@@ -93,9 +107,12 @@ class Ui_Dialog(object):
         self.lblMaskfile.setText(QtGui.QApplication.translate("Dialog", "Select maskfile", None, QtGui.QApplication.UnicodeUTF8))
         self.btnOpenMetafile.setText(QtGui.QApplication.translate("Dialog", "...", None, QtGui.QApplication.UnicodeUTF8))
         self.btnOpenMaskfile.setText(QtGui.QApplication.translate("Dialog", "...", None, QtGui.QApplication.UnicodeUTF8))
-        self.chkDefault.setText(QtGui.QApplication.translate("Dialog", "Use default", None, QtGui.QApplication.UnicodeUTF8))
+        self.chkDefault.setText(QtGui.QApplication.translate("Dialog", "Use default path", None, QtGui.QApplication.UnicodeUTF8))
         self.lblTmpfolder.setText(QtGui.QApplication.translate("Dialog", "Select tmp folder", None, QtGui.QApplication.UnicodeUTF8))
         self.btnOpenTmpfolder.setText(QtGui.QApplication.translate("Dialog", "...", None, QtGui.QApplication.UnicodeUTF8))
+        self.chkShadows.setText(QtGui.QApplication.translate("Dialog", "With shadows", None, QtGui.QApplication.UnicodeUTF8))
+        self.chkCloud.setText(QtGui.QApplication.translate("Dialog", "Cloud sign.", None, QtGui.QApplication.UnicodeUTF8))
+        self.chkPass.setText(QtGui.QApplication.translate("Dialog", "Single pass", None, QtGui.QApplication.UnicodeUTF8))
         self.btnOk.setText(QtGui.QApplication.translate("Dialog", "Ok", None, QtGui.QApplication.UnicodeUTF8))
         self.btnCancel.setText(QtGui.QApplication.translate("Dialog", "Cancel", None, QtGui.QApplication.UnicodeUTF8))
 

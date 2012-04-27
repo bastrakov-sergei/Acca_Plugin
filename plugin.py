@@ -47,6 +47,9 @@ class Acca_Plugin:
         self.metafile=self.main.txtMetafile.text().toUtf8().data()
         self.tmpfolder=self.main.txtTmpfolder.text().toUtf8().data()
         self.maskfile=self.main.txtMaskfile.text().toUtf8().data()
+        self.shadows=self.main.chkShadows.isChecked()
+        self.cloud=self.main.chkCloud.isChecked()
+        self.single_pass=self.main.chkPass.isChecked()
         self.toar=CToar(self.metafile,self.tmpfolder,1)
         QObject.connect(self.toar, SIGNAL("progress(int, float)"),self.updateProgress,Qt.QueuedConnection)
         QObject.connect(self.toar, SIGNAL("finished()"),self.toarDone)
@@ -61,7 +64,7 @@ class Acca_Plugin:
     def toarDone(self):
         print "Toar done!"
         self.new_metafile=os.path.join(self.tmpfolder,os.path.basename(self.metafile))
-        self.acca=CAcca(self.new_metafile,self.maskfile,1)
+        self.acca=CAcca(self.new_metafile,self.maskfile,1,self.shadows,self.cloud,self.single_pass)
         QObject.connect(self.acca, SIGNAL("progress(int, float)"),self.updateProgress, Qt.QueuedConnection)
         QObject.connect(self.acca, SIGNAL("finished()"), self.accaDone)
         self.acca.start()
