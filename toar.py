@@ -204,7 +204,7 @@ class CToar(QThread):
                     processed_area+=stepx*stepy
                     stat=processed_area*100.0/area
                     self.printf ("\rINFO: Toar, step %i of 5: %.2f%s",band_i+1,stat,"%")
-                    self.emit(SIGNAL("progress(int, float)"), band_i, stat)
+                    self.emit(SIGNAL("progress(int, int, float)"), 0, band_i, stat)
                 if need_new_column:
                     band_c=[]
                     band_c.append(band_r[0].copy())

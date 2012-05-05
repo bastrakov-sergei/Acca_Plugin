@@ -19,7 +19,7 @@ class CAcca(QThread):
 
     #printf from C
     def printf(self, fstr,*param):
-        if (self.debuglevel == 1):
+        if (self.debuglevel==1):
             string=fstr % param
             sys.stdout.write (string)
             sys.stdout.flush()
@@ -306,7 +306,7 @@ class CAcca(QThread):
                 processed_area+=stepx*stepy
                 stat=processed_area*100.0/area
                 self.printf ("\rACCA first pass: %.2f%s",stat,"%")
-                self.emit(SIGNAL("progress(int, float)"), 5, stat)
+                self.emit(SIGNAL("progress(int, int, float)"), 1, 1, stat)
             if need_new_column:
                 mask_c=mask_r.copy()
                 need_new_column=False
@@ -414,7 +414,7 @@ class CAcca(QThread):
                 processed_area+=stepx*stepy
                 stat=processed_area*100.0/area
                 self.printf ("\rACCA second pass: %.2f%s",stat,"%")
-                self.emit(SIGNAL("progress(int, float)"), 2, stat)
+                self.emit(SIGNAL("progress(int, int, float)"), 1, 2, stat)
         if need_new_column:
             mask_c=mask_r.copy()
             need_new_column=False

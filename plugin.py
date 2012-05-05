@@ -50,8 +50,8 @@ class Acca_Plugin:
         self.shadows=self.main.chkShadows.isChecked()
         self.cloud=self.main.chkCloud.isChecked()
         self.single_pass=self.main.chkPass.isChecked()
-        self.toar=CToar(self.metafile,self.tmpfolder,1)
-        QObject.connect(self.toar, SIGNAL("progress(int, float)"),self.updateProgress,Qt.QueuedConnection)
+        self.toar=CToar(self.metafile,self.tmpfolder,1,None)
+        QObject.connect(self.toar, SIGNAL("progress(int, int, float)"),self.updateProgress,Qt.QueuedConnection)
         QObject.connect(self.toar, SIGNAL("finished()"),self.toarDone)
         self.window.close()
         self.progressWindow = QDialog()
@@ -62,10 +62,9 @@ class Acca_Plugin:
         self.progressWindow.exec_()
 
     def toarDone(self):
-        print "Toar done!"
         self.new_metafile=os.path.join(self.tmpfolder,os.path.basename(self.metafile))
-        self.acca=CAcca(self.new_metafile,self.maskfile,1,self.shadows,self.cloud,self.single_pass)
-        QObject.connect(self.acca, SIGNAL("progress(int, float)"),self.updateProgress, Qt.QueuedConnection)
+        self.acca=CAcca(self.new_metafile,self.maskfile,1,self.shadows,self.cloud,self.single_pass,None)
+        QObject.connect(self.acca, SIGNAL("progress(int, int, float)"),self.updateProgress, Qt.QueuedConnection)
         QObject.connect(self.acca, SIGNAL("finished()"), self.accaDone)
         self.acca.start()
 
@@ -90,9 +89,9 @@ class Acca_Plugin:
         self.main.txtTmpfolder.setEnabled(not self.main.chkDefault.isChecked())
         self.main.btnOpenTmpfolder.setEnabled(not self.main.chkDefault.isChecked())
 
-    def updateProgress(self,step,stat):
-        if (step<5):
+    def updateProgress(self,i,step,stat):
+        if (i==0):
             self.slave.lblStatus.setText("Toar: step {0} of 5".format(step+1))
         else:
-            self.slave.lblStatus.setText("Acca: step {0} of 1".format(step+1))
+            self.slave.lblStatus.setText("Acca: step {0} of 2".format(step+1))
         self.slave.prBar.setValue(stat)
