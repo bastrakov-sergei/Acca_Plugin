@@ -16,7 +16,7 @@ class CToar(QThread):
             sys.stdout.write (string)
             sys.stdout.flush()
 
-    def __init__(self, metafile, tmppath, receiver, debuglevel=0, parent=None):
+    def __init__(self, metafile, tmppath, debuglevel=0, parent=None):
         self.metafile=metafile
         self.tmppath=tmppath
         self.debuglevel=debuglevel
