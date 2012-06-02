@@ -93,5 +93,5 @@ class Acca_Plugin:
         if (i==0):
             self.slave.lblStatus.setText("Toar: step {0} of 5".format(step+1))
         else:
-            self.slave.lblStatus.setText("Acca: step {0} of 2".format(step+1))
+            self.slave.lblStatus.setText("Acca: step {0} of 2".format(step))
         self.slave.prBar.setValue(stat)
