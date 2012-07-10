@@ -15,15 +15,15 @@
 #    along with Acca plugin.  If not, see <http://www.gnu.org/licenses/>.
 
 def name():
-    return "Acca plugin"
+    return "Acca plugin" 
 def description():
-    return "Plugin implements ACCA algorithm"
+    return "Plugin implements ACCA algorithm" 
 def qgisMinimumVersion():
-    return "1.0"
+    return "1.0" 
 def version():
-    return "0.1"
+    return "0.1" 
 def authorName():
-    return "Bastrakov Sergey"
+    return "Bastrakov Sergey" 
 def classFactory(iface):
     from plugin import Acca_Plugin
     return Acca_Plugin(iface)
