@@ -21,7 +21,7 @@ def description():
 def qgisMinimumVersion():
     return "1.0"
 def version():
-    return "Version " + "0.1"
+    return "0.1"
 def authorName():
     return "Bastrakov Sergey"
 def classFactory(iface):
