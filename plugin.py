@@ -107,7 +107,7 @@ class Acca_Plugin:
 
     def updateProgress(self,i,step,stat):
         if (i==0):
-            self.slave.lblStatus.setText("Toar: step " + str(step+1) + "of 5")
+            self.slave.lblStatus.setText("Toar: step " + str(step+1) + " of 5")
         else:
-            self.slave.lblStatus.setText("Acca: step " + str(step) + "of 2")
+            self.slave.lblStatus.setText("Acca: step " + str(step) + " of 2")
         self.slave.prBar.setValue(stat)
