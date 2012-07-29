@@ -29,7 +29,7 @@ class CToar(QThread):
         if (self.debuglevel==1):
             string=fstr % param
             sys.stdout.write (string)
-            sys.stdout.flush()
+            #sys.stdout.flush()
 
     def __init__(self, metafile, tmppath, debuglevel=0, parent=None):
         self.metafile=metafile

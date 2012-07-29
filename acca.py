@@ -37,7 +37,7 @@ class CAcca(QThread):
         if (self.debuglevel==1):
             string=fstr % param
             sys.stdout.write (string)
-            sys.stdout.flush()
+            #sys.stdout.flush()
 
     def hist_put(self, band,band_mask,hist):
         #for i in numpy.ma.array(band,mask=band_mask).compressed():
