@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
 #    This file is part of Acca plugin.
 
 #    Acca plugin is free software: you can redistribute it and/or modify

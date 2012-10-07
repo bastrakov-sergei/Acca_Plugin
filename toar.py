@@ -21,17 +21,13 @@ import numpy
 import os
 import time
 import math
+import logging
 
 class CToar(QThread):
 
-#printf from C
-    def printf(self, fstr,*param):
-        if (self.debuglevel==1):
-            string=fstr % param
-            sys.stdout.write (string)
-            #sys.stdout.flush()
-
     def __init__(self, metafile, tmppath, debuglevel=0, parent=None):
+        logging.basicConfig(format = u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s', level = logging.DEBUG)
+        logging.info("Test")
         self.metafile=metafile
         self.tmppath=tmppath
         self.debuglevel=debuglevel
@@ -45,9 +41,10 @@ class CToar(QThread):
         DIST=numpy.interp(nday,days,dist)
         return DIST
 
-    def toar(self,band, i):
+    def toar(self,band, i, correction=False):
         #Calculate radiance
         band[0]=((self.__metadata["LMAX_BAND"+str(i)]-self.__metadata["LMIN_BAND"+str(i)])/(self.__metadata["QCALMAX_BAND"+str(i)]-self.__metadata["QCALMIN_BAND"+str(i)]))*(band[0]-self.__metadata["QCALMIN_BAND"+str(i)])+self.__metadata["LMIN_BAND"+str(i)]
+
         #ESUN for 2,3,4,5 bands
         ESUN={"7":{2:1812.,3:1533.,4:1039.,5:230.8},"5":{2:1826.,3:1554.,4:1036.,5:215.0}}
         #Thermal band calibration self.__metadataants
@@ -56,7 +53,12 @@ class CToar(QThread):
         COSTHETA=self.__metadata["cos(THETA)"]
         DIST=self.ESD(self.__metadata["date"])
         if i<6:
-            band[0]=(numpy.pi*band[0]*math.pow(DIST,2))/(COSTHETA*ESUN[self.__metadata["sat"]][i])
+            sun_rad=(COSTHETA*ESUN[self.__metadata["sat"]][i])/(numpy.pi*math.pow(DIST,2))
+
+            if correction:
+                band[0]=band[0]-self.__metadata["LMIN_BAND"+str(i)]
+
+            band[0]=band[0]/sun_rad
         else:
             band[0]=TBCC[self.__metadata["sat"]]["K2"]/numpy.log(TBCC[self.__metadata["sat"]]["K1"]/band[0]+1)
 
@@ -67,7 +69,7 @@ class CToar(QThread):
         self.__metadata["METAFILE"]=path
         self.__metadata["PATH"]=self.tmppath
         if not os.path.exists(path):
-            self.printf ("ERROR: Can`t open metafile")
+            logging.error ("Can`t open metafile")
             return None
         metafile=open(path)
         for line in metafile:
@@ -93,7 +95,7 @@ class CToar(QThread):
                 self.__metadata["date"]=param[1].strip().replace('"','')
 
             if param[0].strip() == "SUN_ELEVATION":
-                self.__metadata["cos(THETA)"]=math.cos(90.-float(param[1].strip().replace('"','')))
+                self.__metadata["cos(THETA)"]=math.cos((90.-float(param[1].strip().replace('"','')))*3.1415926/180)
 
             if param[0].strip() == "LMAX_BAND2" or \
                 param[0].strip() == "LMIN_BAND2" or \
@@ -135,24 +137,24 @@ class CToar(QThread):
             if "BAND"+str(i)+"_FILE_NAME" in self.__metadata:
                 gdalData.append(gdal.Open(self.__metadata["BAND"+str(i)+"_FILE_NAME"], gdal.GA_ReadOnly))
                 if gdalData[-1] is None:
-                    self.printf ("ERROR: Can`t open raster")
+                    logging.error("Can`t open raster")
                     return None
-                #self.printf ("Driver short name %s", gdalData[-1].GetDriver().ShortName)
-                #self.printf ("Driver long name %s", gdalData[-1].GetDriver().LongName)
-                #self.printf ("Raster size %i", gdalData[-1].RasterXSize, "x", gdalData[-1].RasterYSize)
-                #self.printf ("Number of bands %i", gdalData[-1].RasterCount)
-                #self.printf ("Projection %i", gdalData[-1].GetProjection())
-                #self.printf ("Geo transform %i", gdalData[-1].GetGeoTransform())
-                #self.printf ("Channels count %i", gdalData[-1].RasterCount)
-                self.printf ("INFO: File %s %s\n", self.__metadata["BAND"+str(i)+"_FILE_NAME"], "loaded")
+                #logging.info ("Driver short name %s", gdalData[-1].GetDriver().ShortName)
+                #logging.info ("Driver long name %s", gdalData[-1].GetDriver().LongName)
+                #logging.info ("Raster size %i", gdalData[-1].RasterXSize, "x", gdalData[-1].RasterYSize)
+                #logging.info ("Number of bands %i", gdalData[-1].RasterCount)
+                #logging.info ("Projection %i", gdalData[-1].GetProjection())
+                #logging.info ("Geo transform %i", gdalData[-1].GetGeoTransform())
+                #logging.info ("Channels count %i", gdalData[-1].RasterCount)
+                logging.info ("File %s %s" % (self.__metadata["BAND"+str(i)+"_FILE_NAME"], "loaded"))
 
             else:
-                self.printf ("ERROR: Missing one or more band.\n")
+                logging.error("Missing one or more band.\n")
                 return None
         return gdalData
 
     def close_bands(self,gdalData):
-        self.printf ("INFO: Closing dataset\n")
+        logging.info("Closing dataset\n")
         gdalData[0]=None
         gdalData[1]=None
         gdalData[2]=None
@@ -180,14 +182,21 @@ class CToar(QThread):
                 gdalDataOut[i].SetProjection(projection[i])
                 gdalDataOut[i].SetGeoTransform(transform[i])
             else:
-                self.printf ("INFO: Driver %s does not support Create() method.\n", format)
+                logging.info ("Driver %s does not support Create() method.\n" % (format, ) )
                 return None
 
         for band in gdalDataOut:
             if band is None:
-                self.printf ("ERROR: Missing one or more band.\n")
+                logging.error ("Missing one or more band.\n")
                 return None
         for band_i in range(0,5):
+            correction=False
+
+            if band_i!=4 and self.__metadata["LMIN_BAND"+str(band_i+2)]<0:
+                correction=True
+
+            if correction:
+                logging.info ("Correction mode active for %i band\n" % (band_i+2))
             step=2000
             x=gdalData[band_i].RasterXSize
             y=gdalData[band_i].RasterYSize
@@ -208,7 +217,7 @@ class CToar(QThread):
                         stepy=step
                     band=[gdalData[band_i].ReadAsArray(i,j,stepx,stepy).astype(numpy.float32)]
 
-                    self.toar(band, band_i+2)
+                    self.toar(band, band_i+2, correction)
 
                     if need_new_row:
                         band_r=[]
@@ -218,7 +227,7 @@ class CToar(QThread):
                         band_r[0]=numpy.vstack((band_r[0],band[0]))
                     processed_area+=stepx*stepy
                     stat=processed_area*100.0/area
-                    self.printf ("\rINFO: Toar, step %i of 5: %.2f%s",band_i+1,stat,"%")
+                    logging.info ("Toar, step %i of 5: %.2f%s" % (band_i+1,stat,"%") )
                     self.emit(SIGNAL("progress(int, int, float)"), 0, band_i, stat)
                 if need_new_column:
                     band_c=[]
@@ -227,10 +236,10 @@ class CToar(QThread):
                 else:
                     band_c[0]=numpy.hstack((band_c[0],band_r[0]))
 
-            self.printf ("\nINFO: Writing data\n")
+            logging.info ("Writing data\n")
             gdalDataOut[band_i].GetRasterBand(1).WriteArray(band_c[0])
             time.sleep(20)
-            self.printf ("INFO: Closing band\n")
+            logging.info ("Closing band\n")
             gdalDataOut[band_i]=None
             band_r=[]
             band_c=[]
@@ -238,7 +247,7 @@ class CToar(QThread):
     def save_metadata(self):
         file=open(os.path.join(self.__metadata["PATH"],os.path.basename(self.__metadata["METAFILE"])),"w")
         if file is None:
-            self.printf ("ERROR: Can`t write data to metafile\n")
+            logging.error("Can`t write data to metafile\n")
             return None
 
         for key in self.__metadata:

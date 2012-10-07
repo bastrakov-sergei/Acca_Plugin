@@ -21,6 +21,7 @@ import numpy
 import os
 import time
 import math
+import logging
 
 class CAcca(QThread):
     __NO_CLOUD=0
@@ -31,13 +32,6 @@ class CAcca(QThread):
     __WARM_CLOUD=50
     __IS_COLD_CLOUD=60
     __IS_WARM_CLOUD=90
-
-    #printf from C
-    def printf(self, fstr,*param):
-        if (self.debuglevel==1):
-            string=fstr % param
-            sys.stdout.write (string)
-            #sys.stdout.flush()
 
     def hist_put(self, band,band_mask,hist):
         #for i in numpy.ma.array(band,mask=band_mask).compressed():
@@ -87,6 +81,7 @@ class CAcca(QThread):
         return (value/(self.__metadata["hist_n"]/100.))
 
     def __init__(self, metafile, maskfile, debuglevel=0, with_shadows=True, cloud_signature=True, single_pass=False, parent=None):
+        logging.basicConfig(format = u'%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s]  %(message)s', level = logging.DEBUG)
         self.metafile=metafile
         self.maskfile=maskfile
         self.debuglevel=debuglevel
@@ -206,7 +201,7 @@ class CAcca(QThread):
         self.__metadata["single_pass"]=self.single_pass
         self.__metadata["MASK_FILE_NAME"]=self.maskfile
         if not os.path.exists(path):
-            self.printf ("ERROR: Can`t open metafile\n")
+            logging.error("Can`t open metafile\n")
             return None
         metafile=open(path)
         for line in metafile:
@@ -241,24 +236,24 @@ class CAcca(QThread):
             if "BAND"+str(i)+"_FILE_NAME" in self.__metadata:
                 gdalData.append(gdal.Open(self.__metadata["BAND"+str(i)+"_FILE_NAME"], gdal.GA_ReadOnly))
                 if gdalData[-1] is None:
-                    self.printf ("ERROR: Can`t open raster")
+                    logging.error("Can`t open raster")
                     return None
-                #self.printf ("Driver short name", gdalData[-1].GetDriver().ShortName)
-                #self.printf ("Driver long name", gdalData[-1].GetDriver().LongName)
-                #self.printf ("Raster size", gdalData[-1].RasterXSize, "x", gdalData[-1].RasterYSize)
-                #self.printf ("Number of bands", gdalData[-1].RasterCount)
-                #self.printf ("Projection", gdalData[-1].GetProjection())
-                #self.printf ("Geo transform", gdalData[-1].GetGeoTransform())
-                #self.printf ("Channels count", gdalData[-1].RasterCount)
-                self.printf ("INFO: File %s %s\n", self.__metadata["BAND"+str(i)+"_FILE_NAME"], "loaded")
+                #logging.info ("Driver short name", gdalData[-1].GetDriver().ShortName)
+                #logging.info ("Driver long name", gdalData[-1].GetDriver().LongName)
+                #logging.info ("Raster size", gdalData[-1].RasterXSize, "x", gdalData[-1].RasterYSize)
+                #logging.info ("Number of bands", gdalData[-1].RasterCount)
+                #logging.info ("Projection", gdalData[-1].GetProjection())
+                #logging.info ("Geo transform", gdalData[-1].GetGeoTransform())
+                #logging.info ("Channels count", gdalData[-1].RasterCount)
+                logging.info ("File %s %s\n", self.__metadata["BAND"+str(i)+"_FILE_NAME"], "loaded")
 
             else:
-                self.printf ("ERROR: Missing one or more band.")
+                logging.error ("Missing one or more band.")
                 return None
         return gdalData
 
     def close_bands(self,gdalData):
-        self.printf ("INFO: Closing dataset\n")
+        logging.info("Closing dataset\n")
         gdalData[0]=None
         gdalData[1]=None
         gdalData[2]=None
@@ -279,7 +274,7 @@ class CAcca(QThread):
             mask.SetProjection(projection)
             mask.SetGeoTransform(transform)
         else:
-            self.printf ("INFO: Driver %s does not support Create() method.\n", format)
+            logging.info ("Driver %s does not support Create() method.\n" % (format, ))
             return None
 
         step=2000
@@ -289,7 +284,7 @@ class CAcca(QThread):
         processed_area=0
         need_new_row=True
         need_new_column=True
-        self.printf ("INFO: Running first pass\n")
+        logging.info("Running first pass\n")
         self.__metadata["stats"]={"SUM_COLD":0.,"SUM_WARM":0.,"KMAX":0.,"KMIN":10000.}
         self.__metadata["count"]={"WARM":0.,"COLD":0.,"SNOW":0.,"SOIL":0.,"TOTAL":0.}
         self.__metadata["value"]={"WARM":0.,"COLD":0.,"SNOW":0.,"SOIL":0.}
@@ -320,16 +315,16 @@ class CAcca(QThread):
                     mask_r=numpy.vstack((mask_r,mask_arg[0]))
                 processed_area+=stepx*stepy
                 stat=processed_area*100.0/area
-                self.printf ("\rACCA first pass: %.2f%s",stat,"%")
+                logging.info("ACCA first pass: %.2f%s" % (stat,"%"))
                 self.emit(SIGNAL("progress(int, int, float)"), 1, 1, stat)
             if need_new_column:
                 mask_c=mask_r.copy()
                 need_new_column=False
             else:
                 mask_c=numpy.hstack((mask_c,mask_r))
-        self.printf ("\nINFO: Writing mask\n")
+        logging.info ("INFO: Writing mask\n")
         mask.GetRasterBand(1).WriteArray(mask_c)
-        self.printf ("INFO: Closing mask\n")
+        logging.info ("Closing mask\n")
         mask=None
         for i in gdalData:
             i=None
@@ -407,7 +402,7 @@ class CAcca(QThread):
         processed_area=0
         need_new_row=True
         need_new_column=True
-        self.printf ("INFO: Running second pass\n")
+        logging.info ("Running second pass\n")
         for i in range(0,x,step):
             need_new_row=True
             for j in range(0,y,step):
@@ -428,16 +423,16 @@ class CAcca(QThread):
                     mask_r=numpy.vstack((mask_r,mask_arg[0]))
                 processed_area+=stepx*stepy
                 stat=processed_area*100.0/area
-                self.printf ("\rACCA second pass: %.2f%s",stat,"%")
+                logging.info("ACCA second pass: %.2f%s" % (stat,"%") )
                 self.emit(SIGNAL("progress(int, int, float)"), 1, 2, stat)
         if need_new_column:
             mask_c=mask_r.copy()
             need_new_column=False
         else:
             mask_c=numpy.hstack((mask_c,mask_r))
-        self.printf ("\nINFO: Writing mask\n")
+        logging.info("Writing mask\n")
         #mask.GetRasterBand(1).WriteArray(mask_c)
-        self.printf ("INFO: Closing mask\n")
+        logging.info ("Closing mask\n")
         mask=None
         band6=None
 
